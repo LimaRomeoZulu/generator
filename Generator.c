@@ -122,9 +122,12 @@ int main(int argc, char* argv[]) {
     //strcpy(bootStrapFile, optarg);
     adef->model = M_GTRCAT;
     adef->useInvariant = FALSE;
+    adef->readTaxaOnly = TRUE;
 	
 	printf("%s\n","Reference Tree");
 	extractTaxaFromTopology(tr, rdta, cdta, newSpeciesTreePath); 
+	getinput(adef, rdta, cdta, tr);
+    	checkOutgroups(tr, adef);	
 
 	int taxaNewSpeciesTree = rdta->numsp;
 	int taxaReferenceSpeciesTree = countTaxaInTopology(referenceSpeciesTreePath);
