@@ -19,7 +19,7 @@
 
 #include "RAxML/globalVariables.h"
 
-void setupGeneTree(tree **geneTree, int taxaGeneTree,){
+void setupGeneTree(tree *geneTree, int taxaGeneTree){
     nodeptr  p0, p, q;
     int
       i,
@@ -47,7 +47,7 @@ void setupGeneTree(tree **geneTree, int taxaGeneTree,){
 	      return ;
 	    }
 
-	  if (!(geneTree->nodep = (nodeptr *) rax_malloc((2*tr->mxtips) * sizeof(nodeptr))))
+	  if (!(geneTree->nodep = (nodeptr *) rax_malloc((2*tips) * sizeof(nodeptr))))
 	    {
 	      printf("ERROR: Unable to obtain sufficient tree memory, too\n");
 	      return ;

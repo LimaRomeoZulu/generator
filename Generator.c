@@ -6,7 +6,7 @@
 #include <math.h>
 
 
-void generateGeneTree(FILE *fp, tree **geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
+void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
 		// Create result tree.
 	nodeptr	
 		p;
@@ -16,8 +16,14 @@ void generateGeneTree(FILE *fp, tree **geneTree, int taxaNewSpeciesTree, int tax
 		ch, 
 		n,
 		lcount = 0; 
+	boolean
+		readBranches 		= FALSE,
+		readNodeLabels 		= TRUE,
+		topologyOnly		= TRUE,
+		completeTree		= TRUE,
+		storeBranchLabels	= FALSE;
 		
-	setupGeneTree(&geneTree, taxaGeneTree);
+	setupGeneTree(geneTree, taxaGeneTree);
 	
 	geneTree->start			= geneTree->nodep[taxaGeneTree];
 	geneTree->ntips			= 0;
@@ -52,7 +58,7 @@ void generateGeneTree(FILE *fp, tree **geneTree, int taxaNewSpeciesTree, int tax
 		}
 		else 
 		{			
-			/*	A rooted format */^t
+			/*	A rooted format */
 			geneTree->rooted = TRUE;
 			geneTree->wasRooted		 = TRUE;
 		
@@ -66,8 +72,8 @@ void generateGeneTree(FILE *fp, tree **geneTree, int taxaNewSpeciesTree, int tax
 	}
 	
 	
-	Tree2String((*geneTree)->tree_string, *geneTree, (*geneTree)->start->back, TRUE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
-	printf("%s", (*geneTree)->tree_string);
+	Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, TRUE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
+	printf("%s", geneTree->tree_string);
 
 	// How deep is the current token nested in the tree?
 		//int depth = 0;
@@ -193,10 +199,15 @@ int main(int argc, char* argv[]) {
 	
 	for(int i = 0 ; i < 1; i++){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));;
-		
 		//int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
-		int taxaGeneTree = 23;
-		generateGeneTree(fp, &geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
+		int taxaGeneTree = taxaNewSpeciesTree;
+		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
+		geneTree->nameHash	= initStringHashTable(10*tr->mxtips);
+		geneTree->nameHash 	= tr->nameHash;		
+		geneTree->rdta 		= tr->rdta;
+		geneTree->nameList	= tr->nameList;		
+
+		generateGeneTree(fp, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
 
 		
 		printf("%s: %d\n","Gene Tree", i);
