@@ -9,12 +9,15 @@
 void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
 	// Create result tree.
 	nodeptr	
-		p;
+		p,
+		tmp;
 	
 	int 
 		i, 
 		ch, 
-		addedTaxa,
+		leftChild,
+		rightChild,
+		parent,
 		lcount = 0; 
 	boolean
 		readBranches 		= FALSE,
@@ -22,8 +25,8 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 		topologyOnly		= TRUE,
 		completeTree		= TRUE,
 		storeBranchLabels	= FALSE;
-		
-	setupGeneTree(geneTree, taxaGeneTree);
+	//TODO find a better input value, taxaGeneTree is to small because more taxa can be added	
+	setupGeneTree(geneTree, taxaNewSpeciesTree);
 	
 	geneTree->start			= geneTree->nodep[taxaGeneTree];
 	geneTree->ntips			= 0;
@@ -31,7 +34,7 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	
 	p = geneTree->nodep[(geneTree->nextnode)++]; 
 	
-	float prob = float)taxaGeneTree/(float)taxaNewSpeciesTree;
+	float prob = (float)taxaGeneTree/(float)taxaNewSpeciesTree;
 	
 	//loop to the first occurence of '(' which is the first subtree/inner node
 	while((ch = treeGetCh(fp)) != '(')
@@ -42,21 +45,56 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 			errorExit(-1);
 		}						
 	};
-	//add the left child
-	addedTaxa = addElementLen(fp, geneTree, p, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
-	if (n < 0) 							assert(0);
-	if (! treeNeedCh(fp, ',', "in")) 	assert(0);
+
+	leftChild = addElementLen(fp, geneTree, p, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels,prob);
+	if (! treeNeedCh(fp, ',', "in"))				assert(0);
 		
-	//add the right child
-	addedTaxa = addElementLen(fp, geneTree, p->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
-	if (n < 0) 							assert(0);
+	//add right child
+	rightChild = addElementLen(fp, geneTree, p->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels,prob);
 	if (! geneTree->rooted) 
 	{
 		if ((ch = treeGetCh(fp)) == ',') 
 		{ 
 			//add the parent
-			addedTaxa = addElementLen(fp, geneTree, p->next->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
-			if (n < 0 )					assert(0);			
+			parent = addElementLen(fp, geneTree, p->next->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
+			if (leftChild > 0 && rightChild > 0 && parent > 0)
+			{
+				tmp = geneTree->nodep[leftChild];
+				if (geneTree->start->number > leftChild)	geneTree->start = tmp;
+				(geneTree->ntips)++;
+				hookupDefault(p, tmp, geneTree->numBranches);
+			
+				tmp = geneTree->nodep[rightChild];
+				if (geneTree->start->number > rightChild)	geneTree->start = tmp;
+				(geneTree->ntips)++;
+				hookupDefault(p->next, tmp, geneTree->numBranches);
+			
+				tmp = geneTree->nodep[parent];
+				if (geneTree->start->number > parent)	geneTree->start = tmp;
+				hookupDefault(p->next->next, tmp, geneTree->numBranches);			
+			
+			}
+			else if(leftChild == 0 && rightChild > 0 && parent > 0)
+			{
+		
+				tmp = geneTree->nodep[rightChild];
+				if (geneTree->start->number > rightChild)	geneTree->start = tmp;
+				(geneTree->ntips)++;
+				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
+			}
+			else if(leftChild > 0 && rightChild == 0 && parent > 0)
+			{
+		
+				tmp = geneTree->nodep[leftChild];
+				if (geneTree->start->number > leftChild)	geneTree->start = tmp;
+				(geneTree->ntips)++;
+				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
+			}
+			else
+			{
+				printf("Tree became rooted");
+				errorExit(-1);
+			}
 		}
 		else 
 		{			
@@ -199,10 +237,11 @@ int main(int argc, char* argv[]) {
 	
 	//treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
 	
-	for(int i = 0 ; i < 1; i++){
+	int i = 0;
+	while(histogram[i] != 0){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));;
-		//int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
-		int taxaGeneTree = taxaNewSpeciesTree;
+		int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
+		//int taxaGeneTree = taxaNewSpeciesTree;
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
 		geneTree->nameHash	= initStringHashTable(10*tr->mxtips);
 		geneTree->nameHash 	= tr->nameHash;		
@@ -213,6 +252,8 @@ int main(int argc, char* argv[]) {
 
 		
 		printf("%s: %d\n","Gene Tree", i);
+		rewind(fp);	
+		i++;
 		//std::cout << PrinterCompact().print( geneTree ) << std::endl;
 		
 		//auto writer = DefaultTreeNewickWriter();

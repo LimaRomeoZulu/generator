@@ -150,40 +150,36 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 		q = tr->nodep[inner];
 		
 		//add left child
-		leftChild = addElementLen(fp, tr, q->next, readBranchLengths, readNodeLabels, lcount, adef, storeBranchLabels));
+		leftChild = addElementLen(fp, tr, q->next, readBranchLengths, readNodeLabels, lcount, adef, storeBranchLabels, prob);
 		if (! treeNeedCh(fp, ',', "in"))				return -1;
 		
 		//add right child
-		rightChild = addElementLen(fp, tr, q->next->next, readBranchLengths, readNodeLabels, lcount, adef, storeBranchLabels));
+		rightChild = addElementLen(fp, tr, q->next->next, readBranchLengths, readNodeLabels, lcount, adef, storeBranchLabels, prob);
 		if (leftChild < 0 || rightChild < 0)
 		{
 			return -1;
 		}
-		else if(leftChild > 0 && rightChild = 0)
-		{
-			if (! treeNeedCh(fp, ')', "in"))				return -1;
-			(tr->nextnode)--;
-			n = q->next->back->number;
-			q->next->back->back = (node *)NULL;
-			q->next->back		= (node *)NULL;
-			
-			return n;
-		}
-		else if(leftChild == 0 && rightChild > 0)
+		else if(leftChild > 0 && rightChild == 0)
 		{
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
 			(tr->nextnode)--;
 			return leftChild;
 		}
+		else if(leftChild == 0 && rightChild > 0)
+		{
+			if (! treeNeedCh(fp, ')', "in"))				return -1;
+			(tr->nextnode)--;
+			return rightChild;
+		}
 		else
 		{
 			tmp = tr->nodep[leftChild];
-			if (tr->start->number > addedTaxa)	tr->start = tmp;
+			if (tr->start->number > leftChild)	tr->start = tmp;
 			(tr->ntips)++;
 			hookupDefault(q->next, tmp, tr->numBranches);
 			
 			tmp = tr->nodep[rightChild];
-			if (tr->start->number > addedTaxa)	tr->start = tmp;
+			if (tr->start->number > rightChild)	tr->start = tmp;
 			(tr->ntips)++;
 			hookupDefault(q->next->next, tmp, tr->numBranches);
 			
@@ -215,8 +211,8 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 	}
 	else 
 	{	 
-		float draw = 0.5;
-		//float draw = (rand() / (RAND_MAX + 1.0));
+		//float draw = 0.5;
+		float draw = (rand() / (RAND_MAX + 1.0));
 		//add taxa to tree
 		if(draw <= prob)
 		{
@@ -292,6 +288,7 @@ int* readHistogram(char fileName[1024])
 	{	
 		if(count<arraySize){
 			result[count] = item;
+			count++;
 		}
 		else{
 			arraySize *= 2;
