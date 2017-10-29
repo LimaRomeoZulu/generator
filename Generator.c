@@ -7,14 +7,14 @@
 
 
 void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
-		// Create result tree.
+	// Create result tree.
 	nodeptr	
 		p;
 	
 	int 
 		i, 
 		ch, 
-		n,
+		addedTaxa,
 		lcount = 0; 
 	boolean
 		readBranches 		= FALSE,
@@ -31,6 +31,8 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	
 	p = geneTree->nodep[(geneTree->nextnode)++]; 
 	
+	float prob = float)taxaGeneTree/(float)taxaNewSpeciesTree;
+	
 	//loop to the first occurence of '(' which is the first subtree/inner node
 	while((ch = treeGetCh(fp)) != '(')
 	{
@@ -41,19 +43,19 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 		}						
 	};
 	//add the left child
-	n = addElementLen(fp, geneTree, p, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels);
+	addedTaxa = addElementLen(fp, geneTree, p, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
 	if (n < 0) 							assert(0);
 	if (! treeNeedCh(fp, ',', "in")) 	assert(0);
 		
 	//add the right child
-	n = addElementLen(fp, geneTree, p->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels);
+	addedTaxa = addElementLen(fp, geneTree, p->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
 	if (n < 0) 							assert(0);
 	if (! geneTree->rooted) 
 	{
 		if ((ch = treeGetCh(fp)) == ',') 
 		{ 
 			//add the parent
-			n = addElementLen(fp, geneTree, p->next->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels);
+			addedTaxa = addElementLen(fp, geneTree, p->next->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
 			if (n < 0 )					assert(0);			
 		}
 		else 
@@ -76,7 +78,7 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	printf("%s", geneTree->tree_string);
 
 	// How deep is the current token nested in the tree?
-		//int depth = 0;
+	//int depth = 0;
 	//std::vector<int> depthCounter;
 	/*auto childrenNotVisited	 = std::vector<size_t>( referenceSpeciesTree.node_count(), 0 );
 	auto childrenInserted	 = std::vector<size_t>( referenceSpeciesTree.node_count(), 0 );
@@ -85,56 +87,56 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	std::cout << "p: " << p << std::endl; 
 	
 	for (auto it : eulertour(referenceSpeciesTree)) {
-		if (it.node().is_leaf()) {
-			depth++;
+	if (it.node().is_leaf()) {
+	depth++;
 			
-			//float draw = 0.5;
-			float draw = (rand() / (RAND_MAX + 1.0));
-			//leaf is added to the tree
-			//std::cout << draw << std::endl;
-			if(draw <= p){
-				node.name = it.node().data_cast<DefaultNodeData>()->name;
-				int idx = it.node().index();
-				//node.name = std::to_string(idx);
-				node.depth = depth;
+	//float draw = 0.5;
+	float draw = (rand() / (RAND_MAX + 1.0));
+	//leaf is added to the tree
+	//std::cout << draw << std::endl;
+	if(draw <= p){
+	node.name = it.node().data_cast<DefaultNodeData>()->name;
+	int idx = it.node().index();
+	//node.name = std::to_string(idx);
+	node.depth = depth;
 
-							broker.push_top( node );
-							node = NewickBrokerElement();
-				--childrenNotVisited[it.link().outer().node().index()];
-				++childrenInserted[it.link().outer().node().index()];
-			}
-			//leaf is not added but was considered
-			else{
-				--childrenNotVisited[it.link().outer().node().index()];
-			}
-		}
-		else{
-			if(std::find(depthCounter.begin(), depthCounter.end(), it.node().index()) != depthCounter.end()) {
-					depth--;
-				if((childrenNotVisited[it.node().index()] == 0)&&(childrenInserted[it.node().index()]>1)){
-					node.name = "a";
-					node.depth = depth;
-					broker.push_top( node );
-					node = NewickBrokerElement();
-					--childrenNotVisited[it.link().outer().node().index()];
-					++childrenInserted[it.link().outer().node().index()];
-				}
-				if((childrenNotVisited[it.node().index()] == 0)&&(childrenInserted[it.node().index()]<1)){
-					node = broker.top();
-					broker.pop_top();
-					node.depth = depth;
-					broker.push_top( node );
-					node = NewickBrokerElement();
-					++childrenInserted[it.link().outer().node().index()];
-				}
+	broker.push_top( node );
+	node = NewickBrokerElement();
+	--childrenNotVisited[it.link().outer().node().index()];
+	++childrenInserted[it.link().outer().node().index()];
+	}
+	//leaf is not added but was considered
+	else{
+	--childrenNotVisited[it.link().outer().node().index()];
+	}
+	}
+	else{
+	if(std::find(depthCounter.begin(), depthCounter.end(), it.node().index()) != depthCounter.end()) {
+	depth--;
+	if((childrenNotVisited[it.node().index()] == 0)&&(childrenInserted[it.node().index()]>1)){
+	node.name = "a";
+	node.depth = depth;
+	broker.push_top( node );
+	node = NewickBrokerElement();
+	--childrenNotVisited[it.link().outer().node().index()];
+	++childrenInserted[it.link().outer().node().index()];
+	}
+	if((childrenNotVisited[it.node().index()] == 0)&&(childrenInserted[it.node().index()]<1)){
+	node = broker.top();
+	broker.pop_top();
+	node.depth = depth;
+	broker.push_top( node );
+	node = NewickBrokerElement();
+	++childrenInserted[it.link().outer().node().index()];
+	}
 
-			} else {
-					depthCounter.push_back(it.node().index());
-				depth++;
-				childrenNotVisited[it.node().index()] = it.node().rank();
-				childrenInserted[it.node().index()] = 0;
-			}
-		}
+	} else {
+	depthCounter.push_back(it.node().index());
+	depth++;
+	childrenNotVisited[it.node().index()] = it.node().rank();
+	childrenInserted[it.node().index()] = 0;
+	}
+	}
 	}
 
 	node.name = "root";
@@ -148,16 +150,16 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 
 int main(int argc, char* argv[]) {
 	
-		rawdata			*rdta;
-		cruncheddata *cdta;
-		tree				 *tr;
-		analdef			*adef;
+	rawdata			*rdta;
+	cruncheddata *cdta;
+	tree				 *tr;
+	analdef			*adef;
 	char modelChar = 'R';
 	
 	char *referenceSpeciesTreePath = NULL,
-		 *newSpeciesTreePath = NULL,
-		 *histogramPath = NULL,
-		 *RFMetrixPath = NULL;
+	*newSpeciesTreePath = NULL,
+	*histogramPath = NULL,
+	*RFMetrixPath = NULL;
 	//std::ofstream evaluationTrees;
 	
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
@@ -172,22 +174,22 @@ int main(int argc, char* argv[]) {
 	//std::ifstream file_rfMetrix(RFMetrixPath);
 	
 	//TODO: check where it is freed
-		adef = (analdef *)rax_malloc(sizeof(analdef));
-		rdta = (rawdata *)rax_malloc(sizeof(rawdata));
-		cdta = (cruncheddata *)rax_malloc(sizeof(cruncheddata));
+	adef = (analdef *)rax_malloc(sizeof(analdef));
+	rdta = (rawdata *)rax_malloc(sizeof(rawdata));
+	cdta = (cruncheddata *)rax_malloc(sizeof(cruncheddata));
 	tr	 = (tree *)rax_malloc(sizeof(tree));
 	initAdef(adef);
 	
-		adef->restart = TRUE;
-		//strcpy(bootStrapFile, optarg);
-		adef->model = M_GTRCAT;
-		adef->useInvariant = FALSE;
-		adef->readTaxaOnly = TRUE;
+	adef->restart = TRUE;
+	//strcpy(bootStrapFile, optarg);
+	adef->model = M_GTRCAT;
+	adef->useInvariant = FALSE;
+	adef->readTaxaOnly = TRUE;
 	
 	printf("%s\n","Reference Tree");
 	extractTaxaFromTopology(tr, rdta, cdta, newSpeciesTreePath); 
 	getinput(adef, rdta, cdta, tr);
-			checkOutgroups(tr, adef);	
+	checkOutgroups(tr, adef);	
 
 	int taxaNewSpeciesTree = rdta->numsp;
 	int taxaReferenceSpeciesTree = countTaxaInTopology(referenceSpeciesTreePath);
@@ -224,20 +226,20 @@ int main(int argc, char* argv[]) {
 
 	
 	while (itTree) { // iterate over the set of evaluation trees
-		Tree const& tree = *itTree;
-		for (auto it : eulertour(tree)) {
-			if (it.node().is_leaf()) {
-				++leafs;
-			}
-			else{
-				++vertices;
-			}
-		}
-		counting << tree_count << "," << vertices <<"," << leafs << std::endl;
-		vertices = 0;
-		leafs = 0;
-		++tree_count;
-		++itTree;
+	Tree const& tree = *itTree;
+	for (auto it : eulertour(tree)) {
+	if (it.node().is_leaf()) {
+	++leafs;
+	}
+	else{
+	++vertices;
+	}
+	}
+	counting << tree_count << "," << vertices <<"," << leafs << std::endl;
+	vertices = 0;
+	leafs = 0;
+	++tree_count;
+	++itTree;
 	}*/
 	
 	//free allocated memory
