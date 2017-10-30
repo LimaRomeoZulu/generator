@@ -13,7 +13,6 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 		tmp;
 	
 	int 
-		i, 
 		ch, 
 		leftChild,
 		rightChild,
@@ -22,8 +21,6 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	boolean
 		readBranches 		= FALSE,
 		readNodeLabels 		= TRUE,
-		topologyOnly		= TRUE,
-		completeTree		= TRUE,
 		storeBranchLabels	= FALSE;
 	//TODO find a better input value, taxaGeneTree is to small because more taxa can be added	
 	setupGeneTree(geneTree, taxaNewSpeciesTree);
@@ -78,17 +75,26 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 			{
 		
 				tmp = geneTree->nodep[rightChild];
-				if (geneTree->start->number > rightChild)	geneTree->start = tmp;
-				(geneTree->ntips)++;
+				geneTree->start = tmp;
 				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
 			}
 			else if(leftChild > 0 && rightChild == 0 && parent > 0)
 			{
 		
 				tmp = geneTree->nodep[leftChild];
-				if (geneTree->start->number > leftChild)	geneTree->start = tmp;
-				(geneTree->ntips)++;
+				geneTree->start = tmp;
 				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
+			}
+			else if(leftChild == 0 && rightChild == 0 && parent > 0)
+			{
+				tmp = geneTree->nodep[parent]->next->back;
+				geneTree->start = tmp;
+				
+				hookupDefault(geneTree->nodep[parent]->next->next->back, tmp, geneTree->numBranches);
+				geneTree->nodep[parent]->next->back = (nodeptr)NULL;
+				geneTree->nodep[parent]->next->next->back = (nodeptr)NULL;
+
+				
 			}
 			else
 			{
@@ -112,77 +118,8 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	}
 	
 	
-	Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
-	printf("%s", geneTree->tree_string);
 
-	// How deep is the current token nested in the tree?
-	//int depth = 0;
-	//std::vector<int> depthCounter;
-	/*auto childrenNotVisited	 = std::vector<size_t>( referenceSpeciesTree.node_count(), 0 );
-	auto childrenInserted	 = std::vector<size_t>( referenceSpeciesTree.node_count(), 0 );
-	float p = ((float)taxaGeneTree * ((float)taxaNewSpeciesTree/(float)taxareferenceSpeciesTree))/(float)taxaNewSpeciesTree;
-	
-	std::cout << "p: " << p << std::endl; 
-	
-	for (auto it : eulertour(referenceSpeciesTree)) {
-	if (it.node().is_leaf()) {
-	depth++;
-			
-	//float draw = 0.5;
-	float draw = (rand() / (RAND_MAX + 1.0));
-	//leaf is added to the tree
-	//std::cout << draw << std::endl;
-	if(draw <= p){
-	node.name = it.node().data_cast<DefaultNodeData>()->name;
-	int idx = it.node().index();
-	//node.name = std::to_string(idx);
-	node.depth = depth;
 
-	broker.push_top( node );
-	node = NewickBrokerElement();
-	--childrenNotVisited[it.link().outer().node().index()];
-	++childrenInserted[it.link().outer().node().index()];
-	}
-	//leaf is not added but was considered
-	else{
-	--childrenNotVisited[it.link().outer().node().index()];
-	}
-	}
-	else{
-	if(std::find(depthCounter.begin(), depthCounter.end(), it.node().index()) != depthCounter.end()) {
-	depth--;
-	if((childrenNotVisited[it.node().index()] == 0)&&(childrenInserted[it.node().index()]>1)){
-	node.name = "a";
-	node.depth = depth;
-	broker.push_top( node );
-	node = NewickBrokerElement();
-	--childrenNotVisited[it.link().outer().node().index()];
-	++childrenInserted[it.link().outer().node().index()];
-	}
-	if((childrenNotVisited[it.node().index()] == 0)&&(childrenInserted[it.node().index()]<1)){
-	node = broker.top();
-	broker.pop_top();
-	node.depth = depth;
-	broker.push_top( node );
-	node = NewickBrokerElement();
-	++childrenInserted[it.link().outer().node().index()];
-	}
-
-	} else {
-	depthCounter.push_back(it.node().index());
-	depth++;
-	childrenNotVisited[it.node().index()] = it.node().rank();
-	childrenInserted[it.node().index()] = 0;
-	}
-	}
-	}
-
-	node.name = "root";
-	node.depth = 0;
-	broker.push_top( node );
-	node = NewickBrokerElement();
-	
-	return broker;*/
 	return;
 }
 
@@ -192,7 +129,7 @@ int main(int argc, char* argv[]) {
 	cruncheddata *cdta;
 	tree				 *tr;
 	analdef			*adef;
-	char modelChar = 'R';
+	//char modelChar = 'R';
 	
 	char *referenceSpeciesTreePath = NULL,
 	*newSpeciesTreePath = NULL,
@@ -219,7 +156,6 @@ int main(int argc, char* argv[]) {
 	initAdef(adef);
 	
 	adef->restart = TRUE;
-	//strcpy(bootStrapFile, optarg);
 	adef->model = M_GTRCAT;
 	adef->useInvariant = FALSE;
 	adef->readTaxaOnly = TRUE;
@@ -233,10 +169,12 @@ int main(int argc, char* argv[]) {
 	int taxaReferenceSpeciesTree = countTaxaInTopology(referenceSpeciesTreePath);
 	
 	FILE 
-		*fp = myfopen(newSpeciesTreePath, "r");
+		*fp = myfopen(newSpeciesTreePath, "r"),
+		*output = myfopen("../geneTrees.tre", "w");
 	
 	//treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
-	
+	//srand(time(NULL));
+
 	int i = 0;
 	while(histogram[i] != 0){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));;
@@ -250,7 +188,9 @@ int main(int argc, char* argv[]) {
 
 		generateGeneTree(fp, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
 
-		
+		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
+		printf("%s", geneTree->tree_string);
+		fprintf(output, "%s", geneTree->tree_string);
 		printf("%s: %d\n","Gene Tree", i);
 		rewind(fp);	
 		i++;
@@ -292,6 +232,8 @@ int main(int argc, char* argv[]) {
 	rax_free(adef);
 	rax_free(rdta);
 	rax_free(cdta);
-	
+	fclose(fp);
+	fclose(output);	
+
 	return 0;
 }

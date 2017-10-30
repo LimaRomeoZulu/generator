@@ -119,9 +119,6 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 		leftChild,
 		rightChild;
 		
-	boolean 
-		oneTaxaNotAdded = FALSE;
-	
 	if ((ch = treeGetCh(fp)) == '(') 
 	{ 
 		inner = (tr->nextnode)++;
@@ -163,14 +160,27 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 		{
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
 			(tr->nextnode)--;
+			(void) treeFlushLabel(fp);
+			treeFlushLen(fp, tr);
 			return leftChild;
 		}
 		else if(leftChild == 0 && rightChild > 0)
 		{
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
+			(void) treeFlushLabel(fp);
+			treeFlushLen(fp, tr);
 			(tr->nextnode)--;
 			return rightChild;
 		}
+		else if(leftChild == 0 && rightChild == 0)
+		{
+			if (! treeNeedCh(fp, ')', "in"))				return -1;
+			(void) treeFlushLabel(fp);
+			treeFlushLen(fp, tr);
+			(tr->nextnode)--;
+			return 0;
+		}
+
 		else
 		{
 			tmp = tr->nodep[leftChild];
@@ -184,6 +194,8 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 			hookupDefault(q->next->next, tmp, tr->numBranches);
 			
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
+			(void) treeFlushLabel(fp);
+			treeFlushLen(fp, tr);
 			
 			return inner;
 		}
@@ -212,14 +224,16 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 	else 
 	{	 
 		//float draw = 0.5;
-		float draw = (rand() / (RAND_MAX + 1.0));
+		float draw = (rand() / ((double)RAND_MAX + 1.0));
 		//add taxa to tree
+
+		ungetc(ch, fp);		
+		if ((n = treeFindTipName(fp, tr, TRUE)) <= 0)					return -1;	
+		fres = treeFlushLen(fp, tr);
+		if(!fres) return -1;
 		if(draw <= prob)
 		{
-			ungetc(ch, fp);		
-			if ((n = treeFindTipName(fp, tr, TRUE)) <= 0)					return -1;	
-			fres = treeFlushLen(fp, tr);
-			if(!fres) return -1;
+			(tr->ntips)++;
 			return n;
 		}
 		//don't add taxa. This results in one inter node less. 
