@@ -15,8 +15,9 @@ int main(int argc, char* argv[]) {
 	
 	char *SpeciesTreePath = NULL,
 	*GeneTreesPath = NULL,
-	*output = NULL;
-	//std::ofstream evaluationTrees;
+	*output = NULL,
+	*word = (char*)malloc(sizeof(char) * (8));
+	char ch;	
 	
 	copyArgs(&SpeciesTreePath, argv[1]);
 	copyArgs(&GeneTreesPath, argv[2]);
@@ -45,26 +46,29 @@ int main(int argc, char* argv[]) {
 	
 	//treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
 	
-	for(int i = 0; i < sizeof(tr->nameList); i++){
+	for(int i = 1; i <= tr->mxtips; i++){
 		int count = 0;
-	    int read_counter;
+	    	int read_counter;
+		while((ch = treeGetCh(input)) == '('){}
+		ungetc(ch,input);
 		while(!feof(input))
-	    {
-	        fscanf(input, "%s",tr->nameList);
-			if(read_counter >= 0) count++;
-	    }
-	    count--;
-	    rewind(input);
-		fprintf(fp,"%s, %d", tr->nameList[i], count);
+	   	{
+	       		read_counter = fscanf(input, "%[^,:();]%*[%f:.,();]",word);
+			if(read_counter >= 0) 
+			{
+				if(strcmp(word, tr->nameList[i])==0)	count++;
+			}
+	    	}
+	    	count--;
+	    	rewind(input);
+		fprintf(fp,"%s, %d \n", tr->nameList[i], count);
 	}
-	myfclose(fp);
+	fclose(fp);
+	fclose(input);
 	//free allocated memory
-	rax_free(SpeciesTreePath);
-	rax_free(GeneTreesPath);
 	rax_free(tr);
 	rax_free(adef);
 	rax_free(rdta);
 	rax_free(cdta);
-	
 	return 0;
 }
