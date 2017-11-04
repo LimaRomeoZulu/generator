@@ -22,6 +22,7 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 		readBranches 		= FALSE,
 		readNodeLabels 		= TRUE,
 		storeBranchLabels	= FALSE;
+		
 	//TODO find a better input value, taxaGeneTree is to small because more taxa can be added	
 	setupGeneTree(geneTree, taxaNewSpeciesTree);
 	
@@ -116,9 +117,6 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 		p->next->next->back = (nodeptr) NULL;
 		geneTree->wasRooted		 = TRUE;		
 	}
-	
-	
-
 
 	return;
 }
@@ -146,7 +144,8 @@ int main(int argc, char* argv[]) {
 	float *rfMetrix = NULL; 
 	
 	histogram = readHistogram(histogramPath);
-	//std::ifstream file_rfMetrix(RFMetrixPath);
+	rfMetrix = readHistogram(rfMetrixPath);
+
 	
 	//TODO: check where it is freed
 	adef = (analdef *)rax_malloc(sizeof(analdef));
@@ -202,26 +201,7 @@ int main(int argc, char* argv[]) {
 		rax_free(geneTree);
 	}
 	
-	/*utils::InputStream instream(utils::make_unique<utils::FileInputSource>(referenceSpeciesTreePath));
-	auto itTree = NewickInputIterator(instream, DefaultTreeNewickReader());
 
-	
-	while (itTree) { // iterate over the set of evaluation trees
-	Tree const& tree = *itTree;
-	for (auto it : eulertour(tree)) {
-	if (it.node().is_leaf()) {
-	++leafs;
-	}
-	else{
-	++vertices;
-	}
-	}
-	counting << tree_count << "," << vertices <<"," << leafs << std::endl;
-	vertices = 0;
-	leafs = 0;
-	++tree_count;
-	++itTree;
-	}*/
 	
 	//free allocated memory
 	rax_free(referenceSpeciesTreePath);
