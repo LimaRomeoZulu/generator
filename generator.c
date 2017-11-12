@@ -26,7 +26,7 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 	//TODO find a better input value, taxaGeneTree is to small because more taxa can be added	
 	setupGeneTree(geneTree, taxaNewSpeciesTree);
 	
-	geneTree->start			= geneTree->nodep[taxaGeneTree];
+	geneTree->start			= geneTree->nodep[taxaNewSpeciesTree];
 	geneTree->ntips			= 0;
 	geneTree->nextnode		= geneTree->mxtips + 1;	
 	
@@ -76,21 +76,21 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 			{
 		
 				tmp = geneTree->nodep[rightChild];
-				geneTree->start = tmp;
+				if (geneTree->start->number > rightChild)       geneTree->start =     tmp;
 				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
 			}
 			else if(leftChild > 0 && rightChild == 0 && parent > 0)
 			{
 		
 				tmp = geneTree->nodep[leftChild];
-				geneTree->start = tmp;
+				if (geneTree->start->number > leftChild)        geneTree->start =     tmp;
 				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
 			}
 			else if(leftChild == 0 && rightChild == 0 && parent > 0)
 			{
 				tmp = geneTree->nodep[parent]->next->back;
-				geneTree->start = tmp;
-				
+				if (geneTree->start->number > tmp->number)        geneTree->start =     tmp;
+				if (geneTree->start->number > geneTree->nodep[parent]->next->next->back->number)        geneTree->start =     geneTree->nodep[parent]->next->next->back->number;
 				hookupDefault(geneTree->nodep[parent]->next->next->back, tmp, geneTree->numBranches);
 				geneTree->nodep[parent]->next->back = (nodeptr)NULL;
 				geneTree->nodep[parent]->next->next->back = (nodeptr)NULL;
@@ -132,19 +132,19 @@ int main(int argc, char* argv[]) {
 	char *referenceSpeciesTreePath = NULL,
 	*newSpeciesTreePath = NULL,
 	*histogramPath = NULL,
-	*RFMetrixPath = NULL;
+	*rfMetrixPath = NULL;
 	//std::ofstream evaluationTrees;
 	
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
 	copyArgs(&newSpeciesTreePath, argv[2]);
 	copyArgs(&histogramPath, argv[3]);
-	copyArgs(&RFMetrixPath, argv[4]);
+	copyArgs(&rfMetrixPath, argv[4]);
 	
 	int *histogram = NULL; 
-	float *rfMetrix = NULL; 
+	double *rfMetrix = NULL; 
 	
 	histogram = readHistogram(histogramPath);
-	rfMetrix = readHistogram(rfMetrixPath);
+	rfMetrix = readRFDistance(rfMetrixPath);
 
 	
 	//TODO: check where it is freed
@@ -171,12 +171,14 @@ int main(int argc, char* argv[]) {
 		*fp = myfopen(newSpeciesTreePath, "r"),
 		*output = myfopen("../geneTrees.tre", "w");
 	
-	//treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
+	treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
+	rewind(fp);
 	//srand(time(NULL));
 
 	int i = 0;
+	double rf;
 	while(histogram[i] != 0){
-		tree *geneTree = (tree *)rax_malloc(sizeof(tree));;
+		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
 		int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
 		//int taxaGeneTree = taxaNewSpeciesTree;
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
@@ -186,9 +188,11 @@ int main(int argc, char* argv[]) {
 		geneTree->nameList	= tr->nameList;		
 
 		generateGeneTree(fp, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
-
 		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
+		rf = calculateRFDistance(tr, geneTree, adef);
+		//rf = 0.0;
+		printf("target rf distance: %f, current rf distance: %f \n", rfMetrix[i], rf);
 		fprintf(output, "%s", geneTree->tree_string);
 		printf("%s: %d\n","Gene Tree", i);
 		rewind(fp);	
@@ -207,7 +211,7 @@ int main(int argc, char* argv[]) {
 	rax_free(referenceSpeciesTreePath);
 	rax_free(newSpeciesTreePath);
 	rax_free(histogramPath);
-	rax_free(RFMetrixPath);
+	rax_free(rfMetrixPath);
 	rax_free(tr);
 	rax_free(adef);
 	rax_free(rdta);

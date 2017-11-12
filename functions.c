@@ -19,6 +19,21 @@
 
 #include "RAxML/globalVariables.h"
 
+static int sortIntegers(const void *a, const void *b)
+{
+  int 
+    ia = *(int *)(a),
+    ib = *(int *)(b);
+
+  if(ia == ib)
+    return 0;
+
+  if(ib > ia)
+    return -1;
+  else
+    return 1;
+}
+
 void setupGeneTree(tree *geneTree, int taxaGeneTree){
 	nodeptr	p0, p, q;
 	int
@@ -159,7 +174,6 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 		else if(leftChild > 0 && rightChild == 0)
 		{
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
-			(tr->nextnode)--;
 			(void) treeFlushLabel(fp);
 			treeFlushLen(fp, tr);
 			return leftChild;
@@ -169,7 +183,6 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
 			(void) treeFlushLabel(fp);
 			treeFlushLen(fp, tr);
-			(tr->nextnode)--;
 			return rightChild;
 		}
 		else if(leftChild == 0 && rightChild == 0)
@@ -177,7 +190,6 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
 			(void) treeFlushLabel(fp);
 			treeFlushLen(fp, tr);
-			(tr->nextnode)--;
 			return 0;
 		}
 
@@ -185,12 +197,10 @@ static int addElementLen (FILE *fp, tree *tr, nodeptr p, boolean readBranchLengt
 		{
 			tmp = tr->nodep[leftChild];
 			if (tr->start->number > leftChild)	tr->start = tmp;
-			(tr->ntips)++;
 			hookupDefault(q->next, tmp, tr->numBranches);
 			
 			tmp = tr->nodep[rightChild];
 			if (tr->start->number > rightChild)	tr->start = tmp;
-			(tr->ntips)++;
 			hookupDefault(q->next->next, tmp, tr->numBranches);
 			
 			if (! treeNeedCh(fp, ')', "in"))				return -1;
@@ -311,6 +321,34 @@ int* readHistogram(char fileName[1024])
 	} 
 	return result;
 }
+double* readRFDistance(char fileName[1024])
+{
+	FILE 
+		*f = myfopen(fileName, "rb");
+	
+	double 
+		item = 0;
+	int
+	count = 0,
+	arraySize = 1024;
+	
+	double *result;
+	
+	result = (double *) malloc(arraySize * sizeof(double *));
+	
+	while(fscanf(f,"%lf",&item) == 1)	
+	{	
+		if(count<arraySize){
+			result[count] = item;
+			count++;
+		}
+		else{
+			arraySize *= 2;
+			result = (double *) realloc(result, arraySize * sizeof(double *));
+		}
+	} 
+	return result;
+}
 
 void copyArgs(char **targetVariable, char *sourceArgv)
 {
@@ -320,13 +358,14 @@ void copyArgs(char **targetVariable, char *sourceArgv)
 	memcpy(*targetVariable, sourceArgv, length);
 }
 
-void calculateRFDistance(tree *referenceTree, tree *geneTree, analdef *adef)
+double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
 {
-    double 
-      avgRF = 0.0,
-      sumEffectivetime = 0.0;
-	  
-	  /* taxonToLabel[2*tr->mxtips - 2]; 
+	if(geneTree->ntips < 3)
+	{
+		return -1.0;
+	} 
+
+	 /* taxonToLabel[2*tr->mxtips - 2]; 
 	  Array storing all 2n-2 labels from the preordertraversal: (Taxonnumber - 1) -> (Preorderlabel) */
 	  int 
 	    *taxonToLabel  = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
@@ -388,7 +427,12 @@ void calculateRFDistance(tree *referenceTree, tree *geneTree, analdef *adef)
 	  RMQ_succinct(eulerIndexToLabel,4*tr->mxtips - 5);
 	  
       int
-	numberOfSplits = readMultifurcatingTree(treeFile, geneTree, adef, FALSE); //LR set to false
+	numberOfSplits = 0,
+	innerNodeNumber;
+	
+	  innerNodeNumber = geneTree->mxtips + 1;
+
+	  relabelInnerNodes(geneTree->start->back, geneTree, &innerNodeNumber, &numberOfSplits);
       
       if(numberOfSplits > 0)
 	{
@@ -399,9 +443,6 @@ void calculateRFDistance(tree *referenceTree, tree *geneTree, analdef *adef)
 	    rec_rf,
 	    maxRF;
 
-	  if(numberOfTreesAnalyzed % 100 == 0)
-	    printBothOpen("Small tree %d has %d tips and %d bipartitions\n", i, geneTree->ntips, numberOfSplits);    
-	  
 	  /* compute the maximum RF distance for computing the relative RF distance later-on */
 	  
 	  /* note that here we need to pay attention, since the RF distance is not normalized 
@@ -421,9 +462,6 @@ void calculateRFDistance(tree *referenceTree, tree *geneTree, analdef *adef)
 	  
 	  /***********************************************************************************/
 	  /* Reconstruction Step */
-	  
-	  double 
-	    time_start = gettime();
 	  
 	  /* Init hashtable to store Bipartitions of the induced subtree */
 	  /* 
@@ -551,10 +589,12 @@ void calculateRFDistance(tree *referenceTree, tree *geneTree, analdef *adef)
 	  freeHashTable(s_hash);
 	  rax_free(s_hash);
 	  
-	  rax_free(smallTreeTaxa);
+	  rax_free(geneTreeTaxa);
 	  rax_free(seq);
 	  rax_free(seq2);
-	  rax_free(smallTreeTaxonToEulerIndex);
+	  rax_free(geneTreeTaxonToEulerIndex);
+	  return rec_rf;
+	}
 }
 
 
