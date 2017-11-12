@@ -17,6 +17,4 @@ add_subdirectory (RAxML)
  
 # add the executable
 add_executable(Generator generator.c)
-add_executable(Taxa taxaDistribution.c)
 target_link_libraries (Generator RAxML)
-target_link_libraries (Taxa RAxML)

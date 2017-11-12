@@ -34,6 +34,23 @@ static int sortIntegers(const void *a, const void *b)
     return 1;
 }
 
+void getNumberOfTrees(tree *tr, FILE *f, analdef *adef)
+{
+  int 
+    trees = 0,
+    ch;
+
+  while((ch = fgetc(f)) != EOF)
+    if(ch == ';')
+      trees++;
+
+  assert(trees > 0);
+
+  tr->numberOfTrees = trees;
+
+  rewind(f);
+}
+
 void setupGeneTree(tree *geneTree, int taxaGeneTree){
 	nodeptr	p0, p, q;
 	int
@@ -597,16 +614,14 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
 	}
 }
 
-void getTaxaDistribution(tree *tr, char *geneTreeFileName)
+void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
 {
-    FILE 
-		*input = myfopen(geneTreeFileName, "r"),
-		*treeFile;
-	
+	char
+		*word = (char*)malloc(sizeof(char) * (8));
+	char ch;
+
 	/* now see how many small trees we have */
-	treeFile = getNumberOfTrees(tr, GeneTreesPath, adef);
-	checkTreeNumber(tr->numberOfTrees, GeneTreesPath);
-	
+	getNumberOfTrees(tr, input, adef);
 	
 	for(int i = 1; i <= tr->mxtips; i++){
 		int count = 0;
@@ -622,34 +637,37 @@ void getTaxaDistribution(tree *tr, char *geneTreeFileName)
 			}
 	    }
 	    rewind(input);
-		tr->nodep[i]->rec_distr = (float)count/tr->numberOfTrees);
+		tr->nodep[i]->rec_distr = (float)count/tr->numberOfTrees;
 	}
-	fclose(input);
 }
 
-void getGeneTreeStatistics(tree *tr, char *geneTreeFileName)
+void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef)
 {
-    tree 
+    FILE 
+	*input = myfopen(geneTreeFileName, "r");
+    
+	tree 
       *smallTree = (tree *)rax_malloc(sizeof(tree));
 	
 	float
 		rf_dist;
 	
-	getTaxaDistribution(tr, geneTreeFileName);
+	getTaxaDistribution(tr, input, adef);
 	tr->geneLeafDistributions = (int *)rax_malloc(sizeof(int) * (tr->numberOfTrees + 1)); 
 	tr->geneRFDistances = (float *)rax_malloc(sizeof(float) * (tr->numberOfTrees + 1)); 
 	
 	allocateMultifurcations(tr, smallTree);
 	
 	
-	for(i = 0; i < tr->numberOfTrees;  i++)
+	for(int i = 0; i < tr->numberOfTrees;  i++)
 	{
-        int numberOfSplits = readMultifurcatingTree(geneTreeFileName, smallTree, adef, FALSE); //LR set to false
+        int numberOfSplits = readMultifurcatingTree(input, smallTree, adef, FALSE); //LR set to false
 		//TODO imrpove that the reference tree is not processed every time from the beginning
 		rf_dist = calculateRFDistance(tr, smallTree, adef);
-		tr->geneLeafDistributions[i] = smallTree->tips;
+		tr->geneLeafDistributions[i] = smallTree->ntips;
 		tr->geneRFDistances[i] = rf_dist;
 	}
+	fclose(input);
 }
 
 
