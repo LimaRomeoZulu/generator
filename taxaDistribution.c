@@ -19,6 +19,11 @@ int main(int argc, char* argv[]) {
 	*word = (char*)malloc(sizeof(char) * (8));
 	char ch;	
 	
+	FILE 
+		*fp = myfopen(output, "w"),
+		*input = myfopen(GeneTreesPath, "r"),
+		*treeFile;
+	
 	copyArgs(&SpeciesTreePath, argv[1]);
 	copyArgs(&GeneTreesPath, argv[2]);
 	copyArgs(&output, argv[3]);
@@ -40,9 +45,10 @@ int main(int argc, char* argv[]) {
 	getinput(adef, rdta, cdta, tr);
 	checkOutgroups(tr, adef);	
 	
-	FILE 
-		*fp = myfopen(output, "w"),
-		*input = myfopen(GeneTreesPath, "r");
+
+	/* now see how many small trees we have */
+	treeFile = getNumberOfTrees(tr, GeneTreesPath, adef);
+	checkTreeNumber(tr->numberOfTrees, GeneTreesPath);
 	
 	//treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
 	
@@ -53,15 +59,14 @@ int main(int argc, char* argv[]) {
 		ungetc(ch,input);
 		while(!feof(input))
 	   	{
-	       		read_counter = fscanf(input, "%[^,:();]%*[%f:.,();]",word);
+	       	read_counter = fscanf(input, "%[^,:();%f]%*[%f:.,();]",word);
 			if(read_counter >= 0) 
 			{
 				if(strcmp(word, tr->nameList[i])==0)	count++;
 			}
-	    	}
-	    	count--;
-	    	rewind(input);
-		fprintf(fp,"%s, %d \n", tr->nameList[i], count);
+	    }
+	    rewind(input);
+		fprintf(fp,"%s, %f \n", tr->nameList[i], (float)count/tr->numberOfTrees);
 	}
 	fclose(fp);
 	fclose(input);
