@@ -63,6 +63,8 @@ void setupGeneTree(tree *geneTree, int taxaGeneTree){
 	inter = tips-1;
 		
 	geneTree->numberOfTrees = -1;
+	geneTree->rooted = FALSE;
+	geneTree->numBranches = 0;
 
 	geneTree->treeStringLength = 
 		2 * (size_t)tips + //parentheses
@@ -374,56 +376,15 @@ void copyArgs(char **targetVariable, char *sourceArgv)
 	*targetVariable = (char *)rax_malloc(length * sizeof(char *));
 	memcpy(*targetVariable, sourceArgv, length);
 }
-
-double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
+void prepareRefernceTree(tree *tr, int *taxonToReduction, int *taxonHasDeg    , int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon,  int *eulerIndexToLabel)
 {
-	if(geneTree->ntips < 3)
-	{
-		return -1.0;
-	} 
-
-	 /* taxonToLabel[2*tr->mxtips - 2]; 
-	  Array storing all 2n-2 labels from the preordertraversal: (Taxonnumber - 1) -> (Preorderlabel) */
-	  int 
-	    *taxonToLabel  = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
-
-	    /* taxonHasDeg[2*tr->mxtips - 2] 
-	    Array used to store the degree of every taxon, is needed to extract Bipartitions from multifurcating trees 
-	    (Taxonnumber - 1) -> (degree of node(Taxonnumber)) */
-
-	    *taxonHasDeg = (int *)rax_calloc((2*tr->mxtips - 2),sizeof(int)),
-
-	    /* taxonToReduction[2*tr->mxtips - 2]; 
-	  Array used for reducing bitvector and speeding up extraction: 
-	  (Taxonnumber - 1) -> (0..1 (increment count of taxa appearing in small tree))
-	  (Taxonnumber - 1) -> (0..1 (increment count of inner nodes appearing in small tree)) */
-
-	    *taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
-    
 	  int 
 	    newcount = 0; //counter used for correct traversals
 
-	  /* labelToTaxon[2*tr->mxtips - 2];
-	  is used to translate between Perorderlabel and p->number: (Preorderlabel) -> (Taxonnumber) */
-	  int 
-	    *labelToTaxon = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
-  
 	  /* Preorder-Traversal of the large tree */
 	  preOrderTraversal(tr->start->back,tr->mxtips, tr->start->number, taxonToLabel, labelToTaxon, &newcount);
 
 	  newcount = 0; //counter set to 0 to be now used for Eulertraversal
-
-	  /* eulerIndexToLabel[4*tr->mxtips - 5]; 
-	  Array storing all 4n-5 PreOrderlabels created during eulertour: (Eulerindex) -> (Preorderlabel) */
-	  int* 
-	    eulerIndexToLabel = (int *)rax_malloc((4*tr->mxtips - 5) * sizeof(int));
-
-	  /* taxonToEulerIndex[tr->mxtips]; 
-	  Stores all indices of the first appearance of a taxa in the eulerTour: (Taxonnumber - 1) -> (Index of the Eulertour where Taxonnumber first appears) 
-	  is used for efficient computation of the Lowest Common Ancestor during Reconstruction Step
-	  */
-	  int*
-	    taxonToEulerIndex  = (int *)rax_malloc((tr->mxtips) * sizeof(int));
 
 	  /* Init taxonToEulerIndex and taxonToReduction */
 	  int 
@@ -442,6 +403,15 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
 	  /* Creating RMQ Datastructure for efficient retrieval of LCAs, using Johannes Fischers Library rewritten in C
 	  Following Files: rmq.h,rmqs.c,rmqs.h are included in Makefile.RMQ.gcc */
 	  RMQ_succinct(eulerIndexToLabel,4*tr->mxtips - 5);
+	
+}
+double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef, int *taxonToReduction, int *taxonHasDeg, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
+{
+	if(geneTree->ntips < 3)
+	{
+		return -1.0;
+	} 
+
 	  
       int
 	numberOfSplits = 0,
@@ -493,10 +463,8 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
 	  int* 
 	    geneTreeTaxa = (int *)rax_malloc((geneTree->ntips) * sizeof(int));
 	  
-	  /* counter is set to 0 for correctly extracting taxa of the small tree */
-	  newcount = 0; 
-	  
 	  int 
+	    newcount = 0,
 	    newcount2 = 0;
 	  
 	  /* seq2[2*geneTree->ntips - 2]; 
@@ -549,7 +517,7 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
 	  int* 
 	    seq = (int *)rax_malloc((2*geneTree->ntips - 1) * sizeof(int));
 	  
-	  
+	 int ix; 
 	  /* iterate through all small tree taxa */
 	  for(ix = 0; ix < geneTree->ntips; ix++) 
 	    {        
@@ -610,14 +578,15 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef)
 	  rax_free(seq);
 	  rax_free(seq2);
 	  rax_free(geneTreeTaxonToEulerIndex);
-	  return rec_rf;
+
+	return rec_rf;
 	}
 }
 
 void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
 {
 	char
-		*word = (char*)malloc(sizeof(char) * (8));
+		*word = (char*)malloc(25*sizeof(char));
 	char ch;
 
 	/* now see how many small trees we have */
@@ -639,9 +608,10 @@ void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
 	    rewind(input);
 		tr->nodep[i]->rec_distr = (float)count/tr->numberOfTrees;
 	}
+	free(word);
 }
 
-void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef)
+void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int *taxonToReduction, int *taxonHasDeg    , int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
 {
     FILE 
 	*input = myfopen(geneTreeFileName, "r");
@@ -655,7 +625,7 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef)
 	getTaxaDistribution(tr, input, adef);
 	tr->geneLeafDistributions = (int *)rax_malloc(sizeof(int) * (tr->numberOfTrees + 1)); 
 	tr->geneRFDistances = (float *)rax_malloc(sizeof(float) * (tr->numberOfTrees + 1)); 
-	
+
 	allocateMultifurcations(tr, smallTree);
 	
 	
@@ -663,15 +633,37 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef)
 	{
         int numberOfSplits = readMultifurcatingTree(input, smallTree, adef, FALSE); //LR set to false
 		//TODO imrpove that the reference tree is not processed every time from the beginning
-		rf_dist = calculateRFDistance(tr, smallTree, adef);
+		rf_dist = calculateRFDistance(tr, smallTree, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 		tr->geneLeafDistributions[i] = smallTree->ntips;
 		tr->geneRFDistances[i] = rf_dist;
 	}
+  	freeMultifurcations(smallTree);
+  	rax_free(smallTree);
 	fclose(input);
 }
 
 
+void freeTree(tree *tr)
+{
+	rax_free(tr->tree_string);
+	rax_free(tr->nodep[1]);
+	rax_free(tr->nodep);
+}
 
-
+void freeReferenceTree(tree *tr)
+{
+	freeHashTable(tr->nameHash);
+	//rax_free(tr->nameHash->table);
+	rax_free(tr->nameHash);
+	for(int i =1; i <= tr->ntips; i++)
+	{
+		rax_free(tr->nameList[i]);
+	}
+	rax_free(tr->nameList);
+	rax_free(tr->geneLeafDistributions);
+	rax_free(tr->geneRFDistances);
+	freeTree(tr);
+	
+}
 
 

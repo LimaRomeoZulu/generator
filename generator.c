@@ -59,12 +59,10 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 			{
 				tmp = geneTree->nodep[leftChild];
 				if (geneTree->start->number > leftChild)	geneTree->start = tmp;
-				(geneTree->ntips)++;
 				hookupDefault(p, tmp, geneTree->numBranches);
 			
 				tmp = geneTree->nodep[rightChild];
 				if (geneTree->start->number > rightChild)	geneTree->start = tmp;
-				(geneTree->ntips)++;
 				hookupDefault(p->next, tmp, geneTree->numBranches);
 			
 				tmp = geneTree->nodep[parent];
@@ -131,20 +129,22 @@ int main(int argc, char* argv[]) {
 	
 	char *referenceSpeciesTreePath = NULL,
 	*newSpeciesTreePath = NULL,
-	*histogramPath = NULL,
-	*rfMetrixPath = NULL;
+	*geneTreePath = NULL;
+	//*histogramPath = NULL,
+	//*rfMetrixPath = NULL;
 	//std::ofstream evaluationTrees;
 	
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
 	copyArgs(&newSpeciesTreePath, argv[2]);
-	copyArgs(&histogramPath, argv[3]);
-	copyArgs(&rfMetrixPath, argv[4]);
+	copyArgs(&geneTreePath, argv[3]);
+	//copyArgs(&histogramPath, argv[3]);
+	//copyArgs(&rfMetrixPath, argv[4]);
 	
-	int *histogram = NULL; 
-	double *rfMetrix = NULL; 
+	//int *histogram = NULL; 
+	//double *rfMetrix = NULL; 
 	
-	histogram = readHistogram(histogramPath);
-	rfMetrix = readRFDistance(rfMetrixPath);
+	//histogram = readHistogram(histogramPath);
+	//rfMetrix = readRFDistance(rfMetrixPath);
 
 	
 	//TODO: check where it is freed
@@ -174,44 +174,54 @@ int main(int argc, char* argv[]) {
 	treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
 	rewind(fp);
 	//srand(time(NULL));
+       int
+             *taxonHasDeg = (int *)rax_calloc((2*tr->mxtips - 2),sizeof(int)),
+             *taxonToLabel  = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
+             *eulerIndexToLabel = (int *)rax_malloc((4*tr->mxtips - 5) * sizeof(int)),
+	     *labelToTaxon = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
+             *taxonToEulerIndex  = (int *)rax_malloc((tr->mxtips) * sizeof(int)),
+             *taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
+
+	prepareRefernceTree(tr, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 
 	int i = 0;
 	double rf;
-	while(histogram[i] != 0){
+	for(i; i < tr->numberOfTrees; i++){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
-		int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
-		//int taxaGeneTree = taxaNewSpeciesTree;
+		//int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
+		int taxaGeneTree = taxaNewSpeciesTree;
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
-		geneTree->nameHash	= initStringHashTable(10*tr->mxtips);
 		geneTree->nameHash 	= tr->nameHash;		
 		geneTree->rdta 		= tr->rdta;
 		geneTree->nameList	= tr->nameList;		
+		geneTree->rooted	= FALSE;
 
 		generateGeneTree(fp, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
 		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
-		rf = calculateRFDistance(tr, geneTree, adef);
-		//rf = 0.0;
-		printf("target rf distance: %f, current rf distance: %f \n", rfMetrix[i], rf);
+		rf = calculateRFDistance(tr, geneTree, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
+		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
 		fprintf(output, "%s", geneTree->tree_string);
 		printf("%s: %d\n","Gene Tree", i);
 		rewind(fp);	
-		i++;
-		//std::cout << PrinterCompact().print( geneTree ) << std::endl;
 		
-		//auto writer = DefaultTreeNewickWriter();
-		//writer.to_file(geneTree, "gene_Tree_" + std::to_string(i) + ".tre");
-	
+		//freeMultifurcations(geneTree);
+		freeTree(geneTree);
 		rax_free(geneTree);
 	}
-	
-
 	
 	//free allocated memory
 	rax_free(referenceSpeciesTreePath);
 	rax_free(newSpeciesTreePath);
-	rax_free(histogramPath);
-	rax_free(rfMetrixPath);
+	rax_free(geneTreePath);
+        rax_free(taxonHasDeg);
+        rax_free(taxonToReduction);
+        rax_free(taxonToEulerIndex);
+        rax_free(taxonToLabel);
+        rax_free(eulerIndexToLabel);
+	rax_free(labelToTaxon);
+	freeReferenceTree(tr);
 	rax_free(tr);
 	rax_free(adef);
 	rax_free(rdta);
