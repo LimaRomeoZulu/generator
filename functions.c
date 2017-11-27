@@ -405,7 +405,7 @@ void prepareRefernceTree(tree *tr, int *taxonToReduction, int *taxonHasDeg    , 
 	  RMQ_succinct(eulerIndexToLabel,4*tr->mxtips - 5);
 	
 }
-double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef, int *taxonToReduction, int *taxonHasDeg, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
+double calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, analdef *adef, int *taxonToReduction, int *taxonHasDeg, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
 {
 	if(geneTree->ntips < 3)
 	{
@@ -414,15 +414,8 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef, int *taxonTo
 
 	  
       int
-	numberOfSplits = 0,
-	innerNodeNumber;
-	
 	  innerNodeNumber = geneTree->mxtips + 1;
 
-	  relabelInnerNodes(geneTree->start->back, geneTree, &innerNodeNumber, &numberOfSplits);
-      
-      if(numberOfSplits > 0)
-	{
 	  int
 	    firstTaxon;           
 
@@ -580,7 +573,6 @@ double calculateRFDistance(tree *tr, tree *geneTree, analdef *adef, int *taxonTo
 	  rax_free(geneTreeTaxonToEulerIndex);
 
 	return rec_rf;
-	}
 }
 
 void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
@@ -632,9 +624,11 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 	for(int i = 0; i < tr->numberOfTrees;  i++)
 	{
         int numberOfSplits = readMultifurcatingTree(input, smallTree, adef, FALSE); //LR set to false
-		//TODO imrpove that the reference tree is not processed every time from the beginning
-		rf_dist = calculateRFDistance(tr, smallTree, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
-		tr->geneLeafDistributions[i] = smallTree->ntips;
+	if(numberOfSplits > 0)
+	{
+		rf_dist = calculateRFDistance(tr, smallTree, numberOfSplits, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+	}	
+	tr->geneLeafDistributions[i] = smallTree->ntips;
 		tr->geneRFDistances[i] = rf_dist;
 	}
   	freeMultifurcations(smallTree);

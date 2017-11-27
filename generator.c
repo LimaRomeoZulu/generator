@@ -200,7 +200,7 @@ int main(int argc, char* argv[]) {
 		generateGeneTree(fp, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
 		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
-		rf = calculateRFDistance(tr, geneTree, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
+		rf = calculateRFDistance(tr, geneTree, 3, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
 		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
 		fprintf(output, "%s", geneTree->tree_string);
 		printf("%s: %d\n","Gene Tree", i);
