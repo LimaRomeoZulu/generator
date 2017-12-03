@@ -16,8 +16,12 @@
 #include <limits.h>
 #include <inttypes.h>
 #include <getopt.h>
+#include <random>
 
+extern "C" {
 #include "RAxML/globalVariables.h"
+#include "RAxML/rmq.h"
+}
 
 static int sortIntegers(const void *a, const void *b)
 {
@@ -583,9 +587,9 @@ void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
 
 	/* now see how many small trees we have */
 	getNumberOfTrees(tr, input, adef);
-	
+	unsigned long count;	
 	for(int i = 1; i <= tr->mxtips; i++){
-		int count = 0;
+		count = 0;
 	    int read_counter;
 		while((ch = treeGetCh(input)) == '('){}
 		ungetc(ch,input);
@@ -598,6 +602,7 @@ void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
 			}
 	    }
 	    rewind(input);
+		tr->taxaOccurencePrefixSum[i] = tr->taxaOccurencePrefixSum[i-1] + count;
 		tr->nodep[i]->rec_distr = (float)count/tr->numberOfTrees;
 	}
 	free(word);
@@ -646,7 +651,7 @@ void freeTree(tree *tr)
 
 void freeReferenceTree(tree *tr)
 {
-	freeHashTable(tr->nameHash);
+	freeHashTable((hashtable*)tr->nameHash);
 	//rax_free(tr->nameHash->table);
 	rax_free(tr->nameHash);
 	for(int i =1; i <= tr->ntips; i++)

@@ -1,7 +1,9 @@
 
 #include <unistd.h>
+extern "C" {
 #include "RAxML/axml.h"
-#include "functions.c"
+}
+#include "functions.cpp"
 #include <stdio.h>
 #include <math.h>
 
@@ -88,7 +90,7 @@ void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxa
 			{
 				tmp = geneTree->nodep[parent]->next->back;
 				if (geneTree->start->number > tmp->number)        geneTree->start =     tmp;
-				if (geneTree->start->number > geneTree->nodep[parent]->next->next->back->number)        geneTree->start =     geneTree->nodep[parent]->next->next->back->number;
+				if (geneTree->start->number > geneTree->nodep[parent]->next->next->back->number)        geneTree->start =     geneTree->nodep[parent]->next->next->back;
 				hookupDefault(geneTree->nodep[parent]->next->next->back, tmp, geneTree->numBranches);
 				geneTree->nodep[parent]->next->back = (nodeptr)NULL;
 				geneTree->nodep[parent]->next->next->back = (nodeptr)NULL;
