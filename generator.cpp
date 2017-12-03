@@ -8,124 +8,106 @@ extern "C" {
 #include <math.h>
 
 
-void generateGeneTree(FILE *fp, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
+void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
 	// Create result tree.
 	nodeptr	
 		p,
-		tmp;
+	tmp;
 	
 	int 
 		ch, 
-		leftChild,
-		rightChild,
-		parent,
-		lcount = 0; 
+	leftChild,
+	rightChild,
+	parent,
+	lcount = 0; 
 	boolean
 		readBranches 		= FALSE,
-		readNodeLabels 		= TRUE,
-		storeBranchLabels	= FALSE;
+	storeBranchLabels	= FALSE;
 		
-	//TODO find a better input value, taxaGeneTree is to small because more taxa can be added	
 	setupGeneTree(geneTree, taxaNewSpeciesTree);
 	
 	geneTree->start			= geneTree->nodep[taxaNewSpeciesTree];
 	geneTree->ntips			= 0;
 	geneTree->nextnode		= geneTree->mxtips + 1;	
 	
+	//Copy the prefixSum Array to alter it for leafs that were already added
+	geneTree->taxaOccurencePrefixSum = longDup(referenceTree->taxaOccurencePrefixSum, referenceTree->mxtips);
+	
 	p = geneTree->nodep[(geneTree->nextnode)++]; 
 	
 	float prob = (float)taxaGeneTree/(float)taxaNewSpeciesTree;
 	
-	//loop to the first occurence of '(' which is the first subtree/inner node
-	while((ch = treeGetCh(fp)) != '(')
-	{
-		if(ch == EOF)
-		{
-			printf("RAxML could not find a single \"(\" in what is supposed to be your tree file\n");
-			errorExit(-1);
-		}						
-	};
-
-	leftChild = addElementLen(fp, geneTree, p, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels,prob);
-	if (! treeNeedCh(fp, ',', "in"))				assert(0);
-		
+	leftChild = addElementLen(referenceTree->start->back, geneTree, p, readBranches, &lcount, adef, storeBranchLabels,prob);
+	/*		
 	//add right child
-	rightChild = addElementLen(fp, geneTree, p->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels,prob);
+	rightChild = addElementLen(fp, geneTree, p->next, readBranches, &lcount, adef, storeBranchLabels,prob);
 	if (! geneTree->rooted) 
 	{
-		if ((ch = treeGetCh(fp)) == ',') 
-		{ 
-			//add the parent
-			parent = addElementLen(fp, geneTree, p->next->next, readBranches, readNodeLabels, &lcount, adef, storeBranchLabels, prob);
-			if (leftChild > 0 && rightChild > 0 && parent > 0)
-			{
-				tmp = geneTree->nodep[leftChild];
-				if (geneTree->start->number > leftChild)	geneTree->start = tmp;
-				hookupDefault(p, tmp, geneTree->numBranches);
+	if ((ch = treeGetCh(fp)) == ',') 
+	{ 
+	//add the parent
+	parent = addElementLen(fp, geneTree, p->next->next, readBranches, &lcount, adef, storeBranchLabels, prob);
+	if (leftChild > 0 && rightChild > 0 && parent > 0)
+	{
+	tmp = geneTree->nodep[leftChild];
+	if (geneTree->start->number > leftChild)	geneTree->start = tmp;
+	hookupDefault(p, tmp, geneTree->numBranches);
 			
-				tmp = geneTree->nodep[rightChild];
-				if (geneTree->start->number > rightChild)	geneTree->start = tmp;
-				hookupDefault(p->next, tmp, geneTree->numBranches);
+	tmp = geneTree->nodep[rightChild];
+	if (geneTree->start->number > rightChild)	geneTree->start = tmp;
+	hookupDefault(p->next, tmp, geneTree->numBranches);
 			
-				tmp = geneTree->nodep[parent];
-				if (geneTree->start->number > parent)	geneTree->start = tmp;
-				hookupDefault(p->next->next, tmp, geneTree->numBranches);			
+	tmp = geneTree->nodep[parent];
+	if (geneTree->start->number > parent)	geneTree->start = tmp;
+	hookupDefault(p->next->next, tmp, geneTree->numBranches);			
 			
-			}
-			else if(leftChild == 0 && rightChild > 0 && parent > 0)
-			{
+	}
+	else if(leftChild == 0 && rightChild > 0 && parent > 0)
+	{
 		
-				tmp = geneTree->nodep[rightChild];
-				if (geneTree->start->number > rightChild)       geneTree->start =     tmp;
-				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
-			}
-			else if(leftChild > 0 && rightChild == 0 && parent > 0)
-			{
+	tmp = geneTree->nodep[rightChild];
+	if (geneTree->start->number > rightChild)       geneTree->start =     tmp;
+	hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
+	}
+	else if(leftChild > 0 && rightChild == 0 && parent > 0)
+	{
 		
-				tmp = geneTree->nodep[leftChild];
-				if (geneTree->start->number > leftChild)        geneTree->start =     tmp;
-				hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
-			}
-			else if(leftChild == 0 && rightChild == 0 && parent > 0)
-			{
-				tmp = geneTree->nodep[parent]->next->back;
-				if (geneTree->start->number > tmp->number)        geneTree->start =     tmp;
-				if (geneTree->start->number > geneTree->nodep[parent]->next->next->back->number)        geneTree->start =     geneTree->nodep[parent]->next->next->back;
-				hookupDefault(geneTree->nodep[parent]->next->next->back, tmp, geneTree->numBranches);
-				geneTree->nodep[parent]->next->back = (nodeptr)NULL;
-				geneTree->nodep[parent]->next->next->back = (nodeptr)NULL;
-
-				
-			}
-			else
-			{
-				printf("Tree became rooted");
-				errorExit(-1);
-			}
-		}
-		else 
-		{			
-			/*	A rooted format */
-			geneTree->rooted = TRUE;
-			geneTree->wasRooted		 = TRUE;
+	tmp = geneTree->nodep[leftChild];
+	if (geneTree->start->number > leftChild)        geneTree->start =     tmp;
+	hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
+	}
+	else if(leftChild == 0 && rightChild == 0 && parent > 0)
+	{
+	tmp = geneTree->nodep[parent]->next->back;
+	if (geneTree->start->number > tmp->number)        geneTree->start =     tmp;
+	if (geneTree->start->number > geneTree->nodep[parent]->next->next->back->number)        geneTree->start =     geneTree->nodep[parent]->next->next->back;
+	hookupDefault(geneTree->nodep[parent]->next->next->back, tmp, geneTree->numBranches);
+	geneTree->nodep[parent]->next->back = (nodeptr)NULL;
+	geneTree->nodep[parent]->next->next->back = (nodeptr)NULL;
+	}
+	}
+	else 
+	{			
+	geneTree->rooted = TRUE;
+	geneTree->wasRooted		 = TRUE;
 		
-			if (ch != EOF)	(void) ungetc(ch, fp);
-		}	
+	if (ch != EOF)	(void) ungetc(ch, fp);
+	}	
 	}
 	else 
 	{						
-		p->next->next->back = (nodeptr) NULL;
-		geneTree->wasRooted		 = TRUE;		
+	p->next->next->back = (nodeptr) NULL;
+	geneTree->wasRooted		 = TRUE;		
 	}
-
+	*/
 	return;
 }
 
 int main(int argc, char* argv[]) {
 	
 	rawdata			*rdta;
-	cruncheddata *cdta;
-	tree				 *tr;
+	cruncheddata 	*cdta;
+	tree			*tr;
 	analdef			*adef;
 	//char modelChar = 'R';
 	
@@ -176,13 +158,13 @@ int main(int argc, char* argv[]) {
 	treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
 	rewind(fp);
 	//srand(time(NULL));
-       int
-             *taxonHasDeg = (int *)rax_calloc((2*tr->mxtips - 2),sizeof(int)),
-             *taxonToLabel  = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
-             *eulerIndexToLabel = (int *)rax_malloc((4*tr->mxtips - 5) * sizeof(int)),
-	     *labelToTaxon = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
-             *taxonToEulerIndex  = (int *)rax_malloc((tr->mxtips) * sizeof(int)),
-             *taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
+	int
+		*taxonHasDeg = (int *)rax_calloc((2*tr->mxtips - 2),sizeof(int)),
+		*taxonToLabel  = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
+		*eulerIndexToLabel = (int *)rax_malloc((4*tr->mxtips - 5) * sizeof(int)),
+		*labelToTaxon = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
+		*taxonToEulerIndex  = (int *)rax_malloc((tr->mxtips) * sizeof(int)),
+			*taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
 
 	prepareRefernceTree(tr, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
@@ -199,7 +181,7 @@ int main(int argc, char* argv[]) {
 		geneTree->nameList	= tr->nameList;		
 		geneTree->rooted	= FALSE;
 
-		generateGeneTree(fp, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
+		generateGeneTree(tr, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
 		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
 		rf = calculateRFDistance(tr, geneTree, 3, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
@@ -217,11 +199,11 @@ int main(int argc, char* argv[]) {
 	rax_free(referenceSpeciesTreePath);
 	rax_free(newSpeciesTreePath);
 	rax_free(geneTreePath);
-        rax_free(taxonHasDeg);
-        rax_free(taxonToReduction);
-        rax_free(taxonToEulerIndex);
-        rax_free(taxonToLabel);
-        rax_free(eulerIndexToLabel);
+	rax_free(taxonHasDeg);
+	rax_free(taxonToReduction);
+	rax_free(taxonToEulerIndex);
+	rax_free(taxonToLabel);
+	rax_free(eulerIndexToLabel);
 	rax_free(labelToTaxon);
 	freeReferenceTree(tr);
 	rax_free(tr);
