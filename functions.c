@@ -38,7 +38,7 @@ static int sortIntegers(const void *a, const void *b)
 		return 1;
 }
 
-void getNumberOfTrees(tree *tr, FILE *f, analdef *adef)
+void getNumberOfTrees(tree *tr, FILE *f)
 {
 	int 
 		trees = 0,
@@ -145,16 +145,13 @@ void setupGeneTree(tree *geneTree, int taxaGeneTree){
 returns 0 if the taxa was not added to the tree due to statistical representation, 
 returns the number of the taxa that can be added to then inner branch
 */
-static int addElement (nodeptr ref, tree *tr, nodeptr p, boolean readBranchLengths, int *lcount, analdef *adef, boolean storeBranchLabels)
+static int addElement (nodeptr ref, tree *tr, boolean readBranchLengths, int *lcount, analdef *adef, boolean storeBranchLabels)
 {	 
 	nodeptr	
 		q,
 	tmp;
 	int			
-		n = -1,
 	inner, 
-	ch, 
-	fres, 
 	leftChild,
 	rightChild;
 		
@@ -192,10 +189,10 @@ static int addElement (nodeptr ref, tree *tr, nodeptr p, boolean readBranchLengt
 		q = tr->nodep[inner];
 		
 		//add left child
-		leftChild = addElement(ref->next->back, tr, q->next, readBranchLengths, lcount, adef, storeBranchLabels, prob);
+		leftChild = addElement(ref->next->back, tr, readBranchLengths, lcount, adef, storeBranchLabels);
 		
 		//add right child
-		rightChild = addElement(ref->next->next->back, tr, q->next->next, readBranchLengths, lcount, adef, storeBranchLabels, prob);
+		rightChild = addElement(ref->next->next->back, tr, readBranchLengths, lcount, adef, storeBranchLabels);
 		if (leftChild < 0 || rightChild < 0)
 		{
 			return -1;
@@ -360,17 +357,12 @@ void prepareRefernceTree(tree *tr, int *taxonToReduction, int *taxonHasDeg    , 
 	RMQ_succinct(eulerIndexToLabel,4*tr->mxtips - 5);
 	
 }
-float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, analdef *adef, int *taxonToReduction, int *taxonHasDeg, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
+float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, int *taxonToReduction, int *taxonHasDeg, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
 {
 	if(geneTree->ntips < 3)
 	{
 		return -1.0;
 	} 
-
-	  
-	int
-		innerNodeNumber = geneTree->mxtips + 1;
-
 	int
 		firstTaxon;           
 
@@ -532,33 +524,40 @@ float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, analdef 
 
 void determineLeafs(tree *geneTree, int *taxaGeneTree, int const numberOfTrees)
 {
-	int j = geneTree->mxtips, 
-	draw = 0;
-	if(taxaGeneTree == 0)
+	int j = geneTree->mxtips; 
+	unsigned long draw = 0;
+	if(*taxaGeneTree == 0)
 	{
 		return;
 	}
 	else
 	{
-		draw = (int)(rand() / ((double)RAND_MAX + 1.0)) * geneTree->mxtips * numberOfTrees;
-		while(geneTree->taxaOccurencePrefixSum[j] > draw)
+		draw = (unsigned long)(rand() / ((double)RAND_MAX + 1.0) * geneTree->taxaOccurencePrefixSum[geneTree->mxtips]);
+		while((geneTree->taxaOccurencePrefixSum[j] >= draw) && (j > 1))
 		{
 			j--;
 		}
 		//if the leaf was already choosen try again
-		if(geneTree->nodep[j]->inTree == TRUE) determineLeafs(geneTree, taxaGeneTree, numberOfTrees);
+		if((geneTree->nodep[j]->inTree == TRUE))
+		{
+			determineLeafs(geneTree, taxaGeneTree, numberOfTrees);
+			return;
+		}
 		else
 		{
 			geneTree->nodep[j]->inTree = TRUE;
-			geneTree->taxaOccurencePrefixSum[j] = geneTree->taxaOccurencePrefixSum[j+1];
-			taxaGeneTree--;
-			return;
+			if((j != geneTree->mxtips) || ( j == 1))
+			{
+				geneTree->taxaOccurencePrefixSum[j] = geneTree->taxaOccurencePrefixSum[j+1];
+			}
+			*taxaGeneTree = *taxaGeneTree - 1;
 		}
-		return;
 	}
+	determineLeafs(geneTree, taxaGeneTree, numberOfTrees);
+	return;
 }
 
-void getTaxaDistribution(tree *tr, FILE  *input, analdef *adef)
+void getTaxaDistribution(tree *tr, FILE  *input)
 {
 	char
 		*word = NULL;
@@ -606,13 +605,13 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 		rf_dist;
 	
 	/* now see how many small trees we have */
-	getNumberOfTrees(tr, input, adef);
+	getNumberOfTrees(tr, input);
 	
 	tr->geneLeafDistributions = (int *)rax_calloc(tr->numberOfTrees + 1, sizeof(int)); 
 	tr->geneRFDistances = (float *)rax_calloc(tr->numberOfTrees + 1, sizeof(float)); 
 	tr->taxaOccurencePrefixSum = (unsigned long *)rax_calloc(tr->mxtips + 1, sizeof(unsigned long)); 
 
-	getTaxaDistribution(tr, input, adef);
+	getTaxaDistribution(tr, input);
 	allocateMultifurcations(tr, smallTree);
 	
 	
@@ -621,7 +620,7 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 		int numberOfSplits = readMultifurcatingTree(input, smallTree, adef, FALSE); //LR set to false
 		if(numberOfSplits > 0)
 		{
-			rf_dist = calculateRFDistance(tr, smallTree, numberOfSplits, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+			rf_dist = calculateRFDistance(tr, smallTree, numberOfSplits, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 		}	
 		tr->geneLeafDistributions[i] = smallTree->ntips;
 		tr->geneRFDistances[i] = rf_dist;
@@ -633,8 +632,8 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 
 unsigned long * longDup(unsigned long const *src, size_t len)
 {
-   unsigned long *p = (unsigned long *) rax_malloc(len * sizeof(unsigned long));
-   memcpy(p, src, len * sizeof(unsigned long));
+   unsigned long *p = (unsigned long *) rax_malloc((len+1) * sizeof(unsigned long));
+   memcpy(p, src, (len+1) * sizeof(unsigned long));
    return p;
 }
 
