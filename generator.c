@@ -17,11 +17,10 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaNewSpeciesTre
 	int 
 		ch, 
 	leftChild,
-	rightChild,
 	parent,
 	lcount = 0; 
 	boolean
-		readBranches 		= FALSE,
+	readBranches 		= FALSE,
 	storeBranchLabels	= FALSE;
 		
 	setupGeneTree(geneTree, taxaNewSpeciesTree);
@@ -32,12 +31,11 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaNewSpeciesTre
 	
 	//Copy the prefixSum Array to alter it for leafs that were already added
 	geneTree->taxaOccurencePrefixSum = longDup(referenceTree->taxaOccurencePrefixSum, referenceTree->mxtips);
+	determineLeafs(geneTree, taxaGeneTree, referenceTree->numberOfTrees);
 	
 	p = geneTree->nodep[(geneTree->nextnode)]; 
 	
-	float prob = (float)taxaGeneTree/(float)taxaNewSpeciesTree;
-	
-	leftChild = addElement(referenceTree->start->back, geneTree, p, readBranches, &lcount, adef, storeBranchLabels,prob);
+	leftChild = addElement(referenceTree->start->back, geneTree, p, readBranches, &lcount, adef, storeBranchLabels);
 	float draw = (rand() / ((double)RAND_MAX + 1.0));
         //add taxa to tree
         if(draw <= prob)
@@ -143,8 +141,7 @@ int main(int argc, char* argv[]) {
 	printf("%s", tr->tree_string);
 	for(i; i < tr->numberOfTrees; i++){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
-		//int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
-		int taxaGeneTree = taxaNewSpeciesTree;
+		int taxaGeneTree = tr->geneLeafDistributions[i];
 		innerNodeNumber =0;
 		innerBranches = 0;
 		
