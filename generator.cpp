@@ -6,22 +6,20 @@ extern "C" {
 #include "functions.cpp"
 #include <stdio.h>
 #include <math.h>
+#include <random>
 
-
-void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef){
+void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaNewSpeciesTree, int taxaGeneTree, analdef *adef, std::default_random_engine *generator){
 	// Create result tree.
 	nodeptr	
 		p,
 	tmp;
 	
 	int 
-		ch, 
-	leftChild,
-	rightChild,
-	parent,
+	leftChild = 0,
+	parent = 0,
 	lcount = 0; 
 	boolean
-		readBranches 		= FALSE,
+	readBranches 		= FALSE,
 	storeBranchLabels	= FALSE;
 		
 	setupGeneTree(geneTree, taxaNewSpeciesTree);
@@ -33,73 +31,51 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaNewSpeciesTre
 	//Copy the prefixSum Array to alter it for leafs that were already added
 	geneTree->taxaOccurencePrefixSum = longDup(referenceTree->taxaOccurencePrefixSum, referenceTree->mxtips);
 	
-	p = geneTree->nodep[(geneTree->nextnode)++]; 
+
+	determineLeafs(geneTree, &taxaGeneTree, referenceTree->numberOfTrees, generator);
 	
-	float prob = (float)taxaGeneTree/(float)taxaNewSpeciesTree;
+	leftChild = addElement(referenceTree->start->back, geneTree, readBranches, &lcount, adef, storeBranchLabels);
+        //add taxa to tree
+        if(geneTree->nodep[referenceTree->start->number]->inTree)
+        {
+		parent = referenceTree->start->number;        	
+		(geneTree->ntips)++;
+               
+        }		
+	p = geneTree->nodep[leftChild];
+
+	if(geneTree->ntips < 3)
+	{
+		printf("ERROR: to few leafs\n");
+		return;
+	}
+	else if(leftChild > 0 && parent > 0 )
+	{
+		tmp = geneTree->nodep[parent];
+		geneTree->start = tmp;
+		hookupDefault(p, tmp, geneTree->numBranches);
+	}
+	else if(leftChild > 0 && parent == 0)
+	{
+		if(!isTip(p->next->back->number, geneTree->mxtips))
+		{
+			tmp = p->next->back;
+			hookupDefault(p->next,tmp->next->next->back, geneTree->numBranches);
+		}
+		else
+		{
+			tmp = p->next->next->back;
+			hookupDefault(p->next->next,tmp->next->next->back, geneTree->numBranches);
+		}
+			hookupDefault(p,tmp->next->back, geneTree->numBranches);
+			tmp->next->next->back = (nodeptr) NULL;
+			tmp->next->back = (nodeptr) NULL;
+			tmp->back = (nodeptr) NULL;
+			geneTree->numberOfBranches--;	
+	}
+	//the root is not included in the count
+	geneTree->numberOfBranches--;	
 	
-	leftChild = addElementLen(referenceTree->start->back, geneTree, p, readBranches, &lcount, adef, storeBranchLabels,prob);
-	/*		
-	//add right child
-	rightChild = addElementLen(fp, geneTree, p->next, readBranches, &lcount, adef, storeBranchLabels,prob);
-	if (! geneTree->rooted) 
-	{
-	if ((ch = treeGetCh(fp)) == ',') 
-	{ 
-	//add the parent
-	parent = addElementLen(fp, geneTree, p->next->next, readBranches, &lcount, adef, storeBranchLabels, prob);
-	if (leftChild > 0 && rightChild > 0 && parent > 0)
-	{
-	tmp = geneTree->nodep[leftChild];
-	if (geneTree->start->number > leftChild)	geneTree->start = tmp;
-	hookupDefault(p, tmp, geneTree->numBranches);
-			
-	tmp = geneTree->nodep[rightChild];
-	if (geneTree->start->number > rightChild)	geneTree->start = tmp;
-	hookupDefault(p->next, tmp, geneTree->numBranches);
-			
-	tmp = geneTree->nodep[parent];
-	if (geneTree->start->number > parent)	geneTree->start = tmp;
-	hookupDefault(p->next->next, tmp, geneTree->numBranches);			
-			
-	}
-	else if(leftChild == 0 && rightChild > 0 && parent > 0)
-	{
-		
-	tmp = geneTree->nodep[rightChild];
-	if (geneTree->start->number > rightChild)       geneTree->start =     tmp;
-	hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
-	}
-	else if(leftChild > 0 && rightChild == 0 && parent > 0)
-	{
-		
-	tmp = geneTree->nodep[leftChild];
-	if (geneTree->start->number > leftChild)        geneTree->start =     tmp;
-	hookupDefault(geneTree->nodep[parent], tmp, geneTree->numBranches);
-	}
-	else if(leftChild == 0 && rightChild == 0 && parent > 0)
-	{
-	tmp = geneTree->nodep[parent]->next->back;
-	if (geneTree->start->number > tmp->number)        geneTree->start =     tmp;
-	if (geneTree->start->number > geneTree->nodep[parent]->next->next->back->number)        geneTree->start =     geneTree->nodep[parent]->next->next->back;
-	hookupDefault(geneTree->nodep[parent]->next->next->back, tmp, geneTree->numBranches);
-	geneTree->nodep[parent]->next->back = (nodeptr)NULL;
-	geneTree->nodep[parent]->next->next->back = (nodeptr)NULL;
-	}
-	}
-	else 
-	{			
-	geneTree->rooted = TRUE;
-	geneTree->wasRooted		 = TRUE;
-		
-	if (ch != EOF)	(void) ungetc(ch, fp);
-	}	
-	}
-	else 
-	{						
-	p->next->next->back = (nodeptr) NULL;
-	geneTree->wasRooted		 = TRUE;		
-	}
-	*/
 	return;
 }
 
@@ -117,6 +93,9 @@ int main(int argc, char* argv[]) {
 	//*histogramPath = NULL,
 	//*rfMetrixPath = NULL;
 	//std::ofstream evaluationTrees;
+
+	int innerBranches = 0,
+	innerNodeNumber = 0;
 	
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
 	copyArgs(&newSpeciesTreePath, argv[2]);
@@ -149,7 +128,6 @@ int main(int argc, char* argv[]) {
 	checkOutgroups(tr, adef);	
 
 	int taxaNewSpeciesTree = rdta->numsp;
-	int taxaReferenceSpeciesTree = countTaxaInTopology(referenceSpeciesTreePath);
 	
 	FILE 
 		*fp = myfopen(newSpeciesTreePath, "r"),
@@ -159,32 +137,49 @@ int main(int argc, char* argv[]) {
 	rewind(fp);
 	//srand(time(NULL));
 	int
-		*taxonHasDeg = (int *)rax_calloc((2*tr->mxtips - 2),sizeof(int)),
 		*taxonToLabel  = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
 		*eulerIndexToLabel = (int *)rax_malloc((4*tr->mxtips - 5) * sizeof(int)),
 		*labelToTaxon = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
 		*taxonToEulerIndex  = (int *)rax_malloc((tr->mxtips) * sizeof(int)),
 			*taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
-
-	prepareRefernceTree(tr, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
-	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+	prepareRefernceTree(tr, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 
 	int i = 0;
 	double rf;
-	for(i; i < tr->numberOfTrees; i++){
+	Tree2String(tr->tree_string, tr, tr->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
+	printf("%s", tr->tree_string);
+
+	std::default_random_engine generator;
+	
+	for(; i < tr->numberOfTrees; i++){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
-		//int taxaGeneTree = (int)roundf((float)histogram[i] * (float)taxaReferenceSpeciesTree/(float)taxaNewSpeciesTree) ;
-		int taxaGeneTree = taxaNewSpeciesTree;
+		int taxaGeneTree = tr->geneLeafDistributions[i];
+		innerNodeNumber =0;
+		innerBranches = 0;
+		
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
 		geneTree->nameHash 	= tr->nameHash;		
 		geneTree->rdta 		= tr->rdta;
 		geneTree->nameList	= tr->nameList;		
 		geneTree->rooted	= FALSE;
 
-		generateGeneTree(tr, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef);
-		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
+		generateGeneTree(tr, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef, &generator);
+		if(geneTree->rooted)
+		{
+			rootedTreeREC(geneTree->tree_string, geneTree, geneTree->start, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE);
+			sprintf(geneTree->tree_string, ");\n");
+		}
+		else
+		{
+			Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
+		}
 		printf("%s", geneTree->tree_string);
-		rf = calculateRFDistance(tr, geneTree, 3, adef, taxonToReduction, taxonHasDeg, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
+		
+		innerNodeNumber = geneTree->mxtips + 1;
+
+  		//relabelInnerNodes(geneTree->start->back, geneTree, &innerNodeNumber, &innerBranches);
+		rf = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
 		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
 		fprintf(output, "%s", geneTree->tree_string);
 		printf("%s: %d\n","Gene Tree", i);
@@ -199,7 +194,6 @@ int main(int argc, char* argv[]) {
 	rax_free(referenceSpeciesTreePath);
 	rax_free(newSpeciesTreePath);
 	rax_free(geneTreePath);
-	rax_free(taxonHasDeg);
 	rax_free(taxonToReduction);
 	rax_free(taxonToEulerIndex);
 	rax_free(taxonToLabel);
