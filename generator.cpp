@@ -94,8 +94,10 @@ int main(int argc, char* argv[]) {
 	//*rfMetrixPath = NULL;
 	//std::ofstream evaluationTrees;
 
-	int innerBranches = 0,
-	innerNodeNumber = 0;
+	int 
+		numLeaf1 = 0,
+		numLeaf2 = 0,
+		innerNodeNumber = 0;
 	
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
 	copyArgs(&newSpeciesTreePath, argv[2]);
@@ -145,8 +147,11 @@ int main(int argc, char* argv[]) {
 	prepareRefernceTree(tr, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 
-	int i = 0;
-	double rf;
+	int i = 0,
+		loopIterations = 35;
+	double 
+		rf,
+		rf2;
 	Tree2String(tr->tree_string, tr, tr->start->back, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 	printf("%s", tr->tree_string);
 
@@ -156,7 +161,6 @@ int main(int argc, char* argv[]) {
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
 		int taxaGeneTree = tr->geneLeafDistributions[i];
 		innerNodeNumber =0;
-		innerBranches = 0;
 		
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
 		geneTree->nameHash 	= tr->nameHash;		
@@ -165,22 +169,37 @@ int main(int argc, char* argv[]) {
 		geneTree->rooted	= FALSE;
 
 		generateGeneTree(tr, geneTree, taxaNewSpeciesTree, taxaGeneTree, adef, &generator);
-		if(geneTree->rooted)
-		{
-			rootedTreeREC(geneTree->tree_string, geneTree, geneTree->start, FALSE, TRUE, FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE);
-			sprintf(geneTree->tree_string, ");\n");
-		}
-		else
-		{
-			Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
-		}
+		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
 		
 		innerNodeNumber = geneTree->mxtips + 1;
+		std::uniform_int_distribution<int> distribution(0,geneTree->ntips-1);
 
   		//relabelInnerNodes(geneTree->start->back, geneTree, &innerNodeNumber, &innerBranches);
 		rf = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
 		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
+
+		while(!((rf > tr->geneRFDistances[i]*0.9) && (rf < tr->geneRFDistances[i]*1.1)) && loopIterations != 0)
+		{
+			numLeaf1 = distribution(generator);
+			numLeaf2 = distribution(generator);
+			//if the same number occured try again
+        		while(numLeaf1 == numLeaf2) numLeaf2 = distribution(generator);
+			switchLeafs(geneTree, numLeaf1, numLeaf2);
+			rf2 = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
+			
+			//Check if we improvement and went closer to the goal
+			if(((rf2 > rf) && (rf2 <= tr->geneRFDistances[i]) && (rf < tr->geneRFDistances[i])) || ((rf2 < rf) && (rf2 >= tr->geneRFDistances[i]) && (rf > tr->geneRFDistances[i]))){
+				rf = rf2;
+			}	
+			else{
+				//switch leafs back to the step before
+				switchLeafs(geneTree, numLeaf1, numLeaf2);
+				loopIterations--;
+			}
+		}
+		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
+
 		fprintf(output, "%s", geneTree->tree_string);
 		printf("%s: %d\n","Gene Tree", i);
 		rewind(fp);	

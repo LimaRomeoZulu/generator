@@ -587,6 +587,36 @@ void determineLeafs(tree *geneTree, int *taxaGeneTree, int const numberOfTrees, 
 	return;
 }
 
+void switchLeafs(tree *tr, int numLeaf1, int numLeaf2)
+{
+	int* 
+		treeTaxa = (int *)rax_malloc((tr->ntips) * sizeof(int)),
+		*taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
+	int 
+		newcount = 0,
+		newcount2 = 0;
+
+	nodeptr
+		leaf1 = (nodeptr) NULL,
+		leaf2 = (nodeptr) NULL,
+		tmp = (nodeptr) NULL;
+	
+	/* extract all taxa of the geneTree and store it into an array, 
+	also store all counts of taxa and nontaxa in taxonToReduction */
+	rec_extractTaxa(treeTaxa, taxonToReduction, tr->start, tr->mxtips, &newcount, &newcount2);
+	rec_extractTaxa(treeTaxa, taxonToReduction, tr->start->back, tr->mxtips, &newcount, &newcount2);
+
+	leaf1 = tr->nodep[treeTaxa[numLeaf1]];
+	leaf2 = tr->nodep[treeTaxa[numLeaf2]];
+
+	tmp = leaf2->back;
+	hookupDefault(leaf1->back, leaf2, tr->numBranches);
+	hookupDefault(tmp, leaf1, tr->numBranches);
+
+	rax_free(treeTaxa);
+	rax_free(taxonToReduction);
+}
+
 void getTaxaDistribution(tree *tr, FILE  *input)
 {
 	char
