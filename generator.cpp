@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
 	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 
 	int i = 0,
-		loopIterations = 35;
+		loopIterations;
 	double 
 		rf,
 		rf2;
@@ -161,7 +161,8 @@ int main(int argc, char* argv[]) {
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
 		int taxaGeneTree = tr->geneLeafDistributions[i];
 		innerNodeNumber =0;
-		
+		loopIterations = 10;		
+
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
 		geneTree->nameHash 	= tr->nameHash;		
 		geneTree->rdta 		= tr->rdta;
@@ -179,7 +180,7 @@ int main(int argc, char* argv[]) {
 		rf = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
 		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
 
-		while(!((rf > tr->geneRFDistances[i]*0.9) && (rf < tr->geneRFDistances[i]*1.1)) && loopIterations != 0)
+		while(!((rf >= tr->geneRFDistances[i]*0.9) && (rf <= tr->geneRFDistances[i]*1.1)) && loopIterations != 0)
 		{
 			numLeaf1 = distribution(generator);
 			numLeaf2 = distribution(generator);
@@ -187,8 +188,7 @@ int main(int argc, char* argv[]) {
         		while(numLeaf1 == numLeaf2) numLeaf2 = distribution(generator);
 			switchLeafs(geneTree, numLeaf1, numLeaf2);
 			rf2 = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
-			
-			//Check if we improvement and went closer to the goal
+
 			if(((rf2 > rf) && (rf2 <= tr->geneRFDistances[i]) && (rf < tr->geneRFDistances[i])) || ((rf2 < rf) && (rf2 >= tr->geneRFDistances[i]) && (rf > tr->geneRFDistances[i]))){
 				rf = rf2;
 			}	
