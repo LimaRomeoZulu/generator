@@ -63,7 +63,136 @@ void copyArgs(char **targetVariable, char *sourceArgv)
 	memcpy(*targetVariable, sourceArgv, length);
 }
 
-void prepareRefernceTree(tree *tr, int *taxonToReduction, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon,  int *eulerIndexToLabel)
+int extractTaxaFromTopologyAndAddNew(tree *tr, rawdata *rdta, cruncheddata *cdta, char fileName[1024], int newTaxaCount)
+{
+	FILE 
+		*f = myfopen(fileName, "rb");
+
+	char 
+		**nameList,
+	buffer[nmlngth + 2]; 
+
+	int
+		i = 0,
+	c,
+	taxaSize = 1024,
+	taxaCount = 0,
+	oldTaxaCount = 0;
+
+	nameList = (char**)rax_malloc(sizeof(char*) * taxaSize);  
+
+	while((c = fgetc(f)) != ';')
+	{
+
+		if(c == '(' || c == ',')
+		{
+			c = fgetc(f);
+			if(c ==  '(' || c == ',')
+			{
+				ungetc(c, f);
+			}
+			else
+			{	
+				i = 0;	
+	
+				do
+				{
+					buffer[i++] = c;
+					c = fgetc(f);
+				}
+				while(c != ':' && c != ')' && c != ',');
+				buffer[i] = '\0';	    
+
+				if(taxaCount == taxaSize)
+				{		  
+					taxaSize *= 2;
+					nameList = (char **)rax_realloc(nameList, sizeof(char*) * taxaSize, FALSE);		 
+				}
+
+				nameList[taxaCount] = (char*)rax_malloc(sizeof(char) * (strlen(buffer) + 1));
+				strcpy(nameList[taxaCount], buffer);
+	
+				taxaCount++;
+			
+				ungetc(c, f);
+			}
+		}
+	}
+
+	oldTaxaCount = taxaCount;
+	
+	while(newTaxaCount > taxaCount)
+	{
+		sprintf(buffer, "Taxon_%d", taxaCount);
+		
+		if(taxaCount == taxaSize)
+		{		  
+			taxaSize *= 2;
+			nameList = (char **)rax_realloc(nameList, sizeof(char*) * taxaSize, FALSE);		 
+		}
+
+		nameList[taxaCount] = (char*)rax_malloc(sizeof(char) * (strlen(buffer) + 1));
+		strcpy(nameList[taxaCount], buffer);
+
+		taxaCount++;
+	}
+
+	/* BEGIN ensuring no taxon occurs twice */
+	{
+		char 
+			**taxList = (char **)rax_malloc(sizeof(char *) * (size_t)taxaCount); 
+
+		for(i = 0; i < taxaCount; ++i)
+			taxList[i] = nameList[i]; 
+
+		qsort(taxList, taxaCount, sizeof(char**), sortLex); 
+
+		for(i = 1; i < taxaCount; ++i)
+		{	
+			if(strcmp(taxList[i], taxList[i-1]) == 0)
+			{
+				printf("\n\nA taxon labelled by %s appears twice in the first tree of tree collection %s, exiting ...\n\n", taxList[i], bootStrapFile);
+				exit(-1);
+			}
+		}
+		rax_free(taxList);
+	}
+	/* END */
+
+
+	printf("Found a total of %d taxa in first tree of tree collection %s\n", taxaCount, bootStrapFile);
+	printf("Expecting all remaining trees in collection to have the same taxon set\n");
+
+	rdta->numsp = taxaCount;
+
+	tr->nameList = (char **)rax_malloc(sizeof(char *) * (taxaCount + 1));  
+	for(i = 1; i <= taxaCount; i++)
+		tr->nameList[i] = nameList[i - 1];
+  
+	rax_free(nameList);
+
+	tr->rdta       = rdta;
+	tr->cdta       = cdta;
+
+	if (rdta->numsp < 4)
+	{    
+		printf("TOO FEW SPECIES, tree contains only %d species\n", rdta->numsp);
+		assert(0);
+	}
+
+	tr->nameHash = initStringHashTable(10 * taxaCount);
+	for(i = 1; i <= taxaCount; i++)   
+	{
+		printf("add [%s]\n", tr->nameList[i]);
+		addword(tr->nameList[i], tr->nameHash, i);
+	}
+
+	fclose(f);
+  
+	return oldTaxaCount;
+}
+
+void prepareReferenceTree(tree *tr, int *taxonToReduction, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon,  int *eulerIndexToLabel)
 {
 	int 
 		newcount = 0; //counter used for correct traversals
@@ -250,6 +379,35 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 	freeMultifurcations(smallTree);
 	rax_free(smallTree);
 	fclose(input);
+}
+
+void enlargeTree(tree *tr, int oldTaxaCount, td::default_random_engine *generator)
+{
+	int
+		i,
+		leaf;
+		lastInner;
+	
+	std::uniform_int_distribution<int> distribution(1,oldTaxaCount);
+	
+	//Get the next inner node
+	lastInner = (tr->nextnode)++;
+	
+	if(tr->nodep[lastInner]->back != NULL) assert(0);
+	
+	
+	for(i = oldTaxaCount + 1; i <= tr->ntips; i++)
+	{
+		leaf = distribution(*generator);
+		
+		hookupDefault(tr->nodep[leaf]->back, tr->nodep[lastInner], tr->numBranches);
+		hookupDefault(tr->nodep[leaf], tr->nodep[lastInner]->next, tr->numBranches);
+		hookupDefault(tr->nodep[i], tr->nodep[lastInner]->next->next, tr->numBranches);
+		
+		lastInner = (tr->nextnode)++;
+		distribution(1,i);
+	}
+
 }
 
 void freeTree(tree *tr)

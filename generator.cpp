@@ -25,11 +25,14 @@ int main(int argc, char* argv[]) {
 		numLeaf1 = 0,
 		numLeaf2 = 0,
 		i = 0,
-		loopIterations;
+		loopIterations,
+		newTaxaCount = 0,
+		oldTaxaCount = 0;
 		
 	double 
 		rf,
-		rf2;
+		rf2,
+		ratio;
 		
 	FILE 
 		*fp = myfopen(referenceSpeciesTreePath, "r"),
@@ -39,6 +42,7 @@ int main(int argc, char* argv[]) {
 		
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
 	copyArgs(&geneTreePath, argv[2]);
+	newTaxaCount = argv[3];
 
 	adef = (analdef *)rax_malloc(sizeof(analdef));
 	rdta = (rawdata *)rax_malloc(sizeof(rawdata));
@@ -52,11 +56,18 @@ int main(int argc, char* argv[]) {
 	adef->readTaxaOnly = TRUE;
 	
 	//read in reference tree
-	extractTaxaFromTopology(tr, rdta, cdta, referenceSpeciesTreePath); 
+	//extractTaxaFromTopology(tr, rdta, cdta, referenceSpeciesTreePath); 
+	oldTaxaCount = extractTaxaFromTopologyAndAddNew(tr, rdta, cdta, referenceSpeciesTreePath, newTaxaCount); 
 	getinput(adef, rdta, cdta, tr);
 	checkOutgroups(tr, adef);	
 	treeReadLen(fp, tr, FALSE, TRUE, TRUE, adef, TRUE, FALSE);
 	rewind(fp);
+	
+	if(oldTaxaCount < newTaxaCount)	ratio = (double)newTaxaCount / (double)oldTaxaCount;
+	else ratio = 1.0;
+	
+	//enlarge reference Tree
+	enlargeTree(tr, oldTaxaCount &generator);
 
 	//Allocate memory for the information of rf calculation of the reference tree
 	int
@@ -67,7 +78,7 @@ int main(int argc, char* argv[]) {
 		*taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
 	
 	//Get the necessary information of the reference tree	
-	prepareRefernceTree(tr, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+	prepareReferenceTree(tr, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 	//Calulcate taxa distribution and RF distances for all gene trees
 	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 	
@@ -76,7 +87,8 @@ int main(int argc, char* argv[]) {
 	*/
 	for(; i < tr->numberOfTrees; i++){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
-		int taxaGeneTree = tr->geneLeafDistributions[i];
+		int taxaGeneTree = (int)((double)tr->geneLeafDistributions[i] * ratio);
+		//maps the taxa number of the gene tree to the taxa number of the reference tree
 		int* treeTaxa = (int *)rax_malloc((tr->ntips) * sizeof(int));
 		
 		std::uniform_int_distribution<int> distribution(0,geneTree->ntips-1);
@@ -89,7 +101,7 @@ int main(int argc, char* argv[]) {
 		loopIterations = 10;
 		
 		//Generate one geneTree
-		generateGeneTree(tr, geneTree, taxaGeneTree, adef, &generator);
+		generateGeneTree(tr, geneTree, taxaGeneTree, adef, ratio, treeTaxa, &generator);
 		
 		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
@@ -105,7 +117,7 @@ int main(int argc, char* argv[]) {
 			//if the same number occured try again
 			while(numLeaf1 == numLeaf2) numLeaf2 = distribution(generator);
 			
-			switchLeafs(geneTree, numLeaf1, numLeaf2, treeTaxa, taxonToReduction);
+			switchLeafs(geneTree, numLeaf1, numLeaf2);
 			rf2 = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
 
 			//if the switch is an iprovement accept the changes
