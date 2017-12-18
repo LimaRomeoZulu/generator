@@ -1,9 +1,9 @@
 #include <unistd.h>
-extern "C" {
-#include "RAxML/axml.h"
-}
-#include "generateGeneTree.cpp"
-#include "treePreparation.cpp"
+//extern "C" {
+//#include "RAxML/axml.h"
+//}
+#include "treePreparation.h"
+#include "geneTreeGeneration.h"
 #include <stdio.h>
 #include <math.h>
 #include <random>
@@ -34,15 +34,16 @@ int main(int argc, char* argv[]) {
 		rf2,
 		ratio;
 		
-	FILE 
-		*fp = myfopen(referenceSpeciesTreePath, "r"),
-		*output = myfopen("../geneTrees.tre", "w");
 		
 	std::default_random_engine generator;
 		
 	copyArgs(&referenceSpeciesTreePath, argv[1]);
 	copyArgs(&geneTreePath, argv[2]);
-	newTaxaCount = argv[3];
+	newTaxaCount = atoi(argv[3]);
+
+	FILE 
+		*fp = myfopen(referenceSpeciesTreePath, "r"),
+		*output = myfopen("../geneTrees.tre", "w");
 
 	adef = (analdef *)rax_malloc(sizeof(analdef));
 	rdta = (rawdata *)rax_malloc(sizeof(rawdata));
@@ -67,7 +68,7 @@ int main(int argc, char* argv[]) {
 	else ratio = 1.0;
 	
 	//enlarge reference Tree
-	enlargeTree(tr, oldTaxaCount &generator);
+	enlargeTree(tr, oldTaxaCount, &generator);
 
 	//Allocate memory for the information of rf calculation of the reference tree
 	int
@@ -88,9 +89,9 @@ int main(int argc, char* argv[]) {
 	for(; i < tr->numberOfTrees; i++){
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
 		int taxaGeneTree = (int)((double)tr->geneLeafDistributions[i] * ratio);
-		//maps the taxa number of the gene tree to the taxa number of the reference tree
-		int* treeTaxa = (int *)rax_malloc((tr->ntips) * sizeof(int));
-		
+		//maps the node number of the gene tree(taxon and inner) to the node number of the reference tree
+		int* treeTaxa = (int *)rax_malloc((tr->ntips * 2) * sizeof(int));
+		boolean* inTreeMapping = (boolean*)rax_calloc((tr->ntips) , sizeof(boolean));		
 		std::uniform_int_distribution<int> distribution(0,geneTree->ntips-1);
 
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
@@ -101,9 +102,9 @@ int main(int argc, char* argv[]) {
 		loopIterations = 10;
 		
 		//Generate one geneTree
-		generateGeneTree(tr, geneTree, taxaGeneTree, adef, ratio, treeTaxa, &generator);
+		generateGeneTree(tr, geneTree, taxaGeneTree, adef, ratio, treeTaxa, inTreeMapping, &generator);
 		
-		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
+		geneTree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE, treeTaxa);
 		printf("%s", geneTree->tree_string);
 
 		rf = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
@@ -130,7 +131,7 @@ int main(int argc, char* argv[]) {
 			{
 				//TODO: Accept step back with certain propability
 				//switch leafs back to the step before
-				switchLeafs(geneTree, numLeaf1, numLeaf2, treeTaxa, taxonToReduction);
+				switchLeafs(geneTree, numLeaf1, numLeaf2);
 				loopIterations--;
 			}
 		}
@@ -141,7 +142,8 @@ int main(int argc, char* argv[]) {
 		//rewind(fp);	
 		
 		//freeMultifurcations(geneTree);
-		rax_free(treeTaxa)
+		rax_free(treeTaxa);
+		rax_free(inTreeMapping);
 		freeTree(geneTree);
 		rax_free(geneTree);
 	}
