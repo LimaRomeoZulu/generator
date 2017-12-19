@@ -100,7 +100,7 @@ int extractTaxaFromTopologyAndAddNew(tree *tr, rawdata *rdta, cruncheddata *cdta
 	
 	while(newTaxaCount > taxaCount)
 	{
-		sprintf(buffer, "Taxon_%d", taxaCount);
+		sprintf(buffer, "Taxon_%d", taxaCount+1);
 		
 		if(taxaCount == taxaSize)
 		{		  
@@ -283,16 +283,17 @@ void setupGeneTree(tree *geneTree, int taxaGeneTree){
 	geneTree->ntips			= 0;
 	geneTree->nextnode		= 0;
 }
-void getTaxaDistribution(tree *tr, FILE  *input)
+void getTaxaDistribution(tree *tr, FILE  *input, std::default_random_engine *generator)
 {
 	char
 		*word = NULL;
 	word = (char*)rax_malloc(25*sizeof(char));
 	char ch;
-
-
-	unsigned long count;	
-	for(int i = 1; i <= tr->mxtips; i++){
+	unsigned long 
+		count;
+	int i;
+	
+	for(i = 1; i <= tr->ntips; i++){
 		count = 0;
 		int read_counter;
 		while((ch = treeGetCh(input)) == '('){}
@@ -315,7 +316,15 @@ void getTaxaDistribution(tree *tr, FILE  *input)
 			tr->taxaOccurencePrefixSum[i] = tr->taxaOccurencePrefixSum[i-1] + count;
 		}
 		tr->nodep[i]->rec_distr = (float)count/tr->numberOfTrees;
-	}	rax_free(word);
+	}	
+	rax_free(word);
+	std::uniform_int_distribution<int> distribution(1,tr->ntips);
+	for(;i <= tr->mxtips; i++ )
+	{
+		int leaf = distribution(*generator);
+		count = tr->taxaOccurencePrefixSum[leaf] - tr->taxaOccurencePrefixSum[leaf -1];
+		tr->taxaOccurencePrefixSum[i] = tr->taxaOccurencePrefixSum[i-1] + count;
+	}
 }
 
 
@@ -482,7 +491,7 @@ float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, int *tax
 	return rec_rf;
 }
 
-void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int *taxonToReduction, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
+void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int *taxonToReduction, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel, std::default_random_engine *generator)
 {
 	FILE 
 		*input = myfopen(geneTreeFileName, "r");
@@ -501,7 +510,7 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 	tr->taxaOccurencePrefixSum = (unsigned long *)rax_calloc(tr->mxtips + 1, sizeof(unsigned long)); 
 
 	
-	getTaxaDistribution(tr, input);
+	getTaxaDistribution(tr, input, generator);
 	allocateMultifurcations(tr, smallTree);
 	
 	
@@ -537,7 +546,7 @@ void enlargeTree(tree *tr, int oldTaxaCount, std::default_random_engine *generat
 	if(tr->nodep[lastInner]->back != NULL) assert(0);
 	
 	
-	for(i = oldTaxaCount + 1; i <= tr->ntips; i++)
+	for(i = oldTaxaCount + 1; i <= tr->mxtips; i++)
 	{
 		leaf = distribution(*generator);
 		
@@ -545,6 +554,7 @@ void enlargeTree(tree *tr, int oldTaxaCount, std::default_random_engine *generat
 		hookupDefault(tr->nodep[leaf], tr->nodep[lastInner]->next, tr->numBranches);
 		hookupDefault(tr->nodep[i], tr->nodep[lastInner]->next->next, tr->numBranches);
 		
+		(tr->ntips)++;
 		lastInner = (tr->nextnode)++;
 		//TODO adjust distribution
 	}

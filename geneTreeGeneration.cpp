@@ -145,7 +145,7 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, ana
 	
 	geneTree->start			= geneTree->nodep[referenceTree->ntips];
 	geneTree->ntips			= taxaGeneTree;
-	geneTree->mxtips 		= referenceTree->ntips;
+	geneTree->mxtips 		= referenceTree->mxtips;
 	geneTree->nextnode		= geneTree->mxtips + 1;	
 	
 	//Copy the prefixSum Array to alter it for leafs that were already added

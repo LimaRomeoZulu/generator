@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
 	//Get the necessary information of the reference tree	
 	prepareReferenceTree(tr, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 	//Calulcate taxa distribution and RF distances for all gene trees
-	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+	getGeneTreeStatistics(tr, geneTreePath, adef, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel, &generator);
 	
 	/*
 		Build new geneTrees based on the gathered statistics
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
 		int taxaGeneTree = (int)((double)tr->geneLeafDistributions[i] * ratio);
 		//maps the node number of the gene tree(taxon and inner) to the node number of the reference tree
 		boolean* inTreeMapping = (boolean*)rax_calloc((tr->ntips) , sizeof(boolean));
-                int *geneTreeTaxa = (int *)rax_malloc((tr->geneLeafDistributions[i]) * sizeof(int));	
+                int *geneTreeTaxa = (int *)rax_malloc(taxaGeneTree * sizeof(int));	
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
 		geneTree->nameHash 	= tr->nameHash;		
 		geneTree->rdta 		= tr->rdta;
