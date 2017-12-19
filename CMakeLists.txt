@@ -17,7 +17,6 @@ SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -lm ")
 include_directories ("${PROJECT_SOURCE_DIR}")
 add_subdirectory (RAxML) 
 
- 
 # add the executable
-add_executable(Generator generator.cpp)
+add_executable(Generator generator.cpp treePreparation.cpp geneTreeGeneration.cpp)
 target_link_libraries (Generator RAxML)

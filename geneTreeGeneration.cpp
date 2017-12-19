@@ -6,7 +6,7 @@
 returns 0 if the taxa was not added to the tree due to statistical representation, 
 returns the number of the taxa that can be added to then inner branch
 */
-static int addElement (nodeptr ref, tree *tr, boolean readBranchLengths, int *lcount, analdef *adef, boolean storeBranchLabels, int *treeTaxa, boolean* inTreeMapping)
+static int addElement (nodeptr ref, tree *tr, boolean readBranchLengths, int *lcount, analdef *adef, boolean storeBranchLabels, boolean* inTreeMapping)
 {	 
 	nodeptr	
 		q,
@@ -19,17 +19,17 @@ static int addElement (nodeptr ref, tree *tr, boolean readBranchLengths, int *lc
 	if (isTip(ref->number, tr->mxtips))
 	{
 		//add taxa to tree
-		if(inTreeMapping[ref->number])	return ref->number;
+		if(inTreeMapping[(ref->number)-1])	return ref->number;
 		//don't add taxa. This results in one inter node less. 
 		else return 0;
 	} 
 	else
 	{ 	
 		//add left child
-		leftChild = addElement(ref->next->back, tr, readBranchLengths, lcount, adef, storeBranchLabels, treeTaxa, inTreeMapping);
+		leftChild = addElement(ref->next->back, tr, readBranchLengths, lcount, adef, storeBranchLabels, inTreeMapping);
 		
 		//add right child
-		rightChild = addElement(ref->next->next->back, tr, readBranchLengths, lcount, adef, storeBranchLabels, treeTaxa, inTreeMapping);
+		rightChild = addElement(ref->next->next->back, tr, readBranchLengths, lcount, adef, storeBranchLabels, inTreeMapping);
 		if (leftChild < 0 || rightChild < 0)
 		{
 			return -1;
@@ -50,43 +50,24 @@ static int addElement (nodeptr ref, tree *tr, boolean readBranchLengths, int *lc
 		{
 			inner = (tr->nextnode)++;
 			q = tr->nodep[inner];
-			
+			tmp = tr->nodep[leftChild];				
+
 			if(isTip(leftChild, tr->mxtips))
 			{
-				tmp = tr->nodep[*lcount];
-				treeTaxa[*lcount-1] = leftChild;
-				if (tr->start->number > *lcount)	tr->start = tmp;
-				*lcount = *lcount + 1;
-			}
-			else
-			{
-				int i = tr->ntips;
-				while(treeTaxa[i] != leftChild) i++;
-				tmp = tr->nodep[i+1];
-				
+				if (tr->start->number > leftChild)	tr->start = tmp;
 			}
 			hookupDefault(q->next, tmp, tr->numBranches);
 			
-			
+			tmp = tr->nodep[rightChild];
 			if(isTip(rightChild, tr->mxtips))
 			{
-				tmp = tr->nodep[*lcount];
-				treeTaxa[*lcount-1] = rightChild;
-				if (tr->start->number > *lcount)	tr->start = tmp;
-				*lcount = *lcount + 1;
-			}
-			else 
-			{
-				int i = tr->ntips;
-				while(treeTaxa[i] != rightChild) i++;
-				tmp = tr->nodep[i+1];
+				if (tr->start->number > rightChild)	tr->start = tmp;
 			}
 			hookupDefault(q->next->next, tmp, tr->numBranches);
 
 			tr->numberOfBranches++;
-			treeTaxa[inner-1] = ref->number;		
 	
-			return ref->number;
+			return inner;
 		}
 	}
 } 
@@ -144,7 +125,7 @@ void determineLeafs(tree *geneTree, int *taxaGeneTree, boolean *inTreeMapping, i
 	return;
 }
 
-void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, analdef *adef, double ratio, int *treeTaxa, boolean* inTreeMapping, std::default_random_engine *generator){
+void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, analdef *adef, double ratio, boolean* inTreeMapping, std::default_random_engine *generator){
 
 	// Create result tree.
 	nodeptr	
@@ -160,12 +141,12 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, ana
 		readBranches 		= FALSE,
 		storeBranchLabels	= FALSE;
 		
-	setupGeneTree(geneTree, taxaGeneTree);
+	setupGeneTree(geneTree, referenceTree->ntips);
 	
-	geneTree->start			= geneTree->nodep[taxaGeneTree];
+	geneTree->start			= geneTree->nodep[referenceTree->ntips];
 	geneTree->ntips			= taxaGeneTree;
 	geneTree->mxtips 		= referenceTree->ntips;
-	geneTree->nextnode		= taxaGeneTree + 1;	
+	geneTree->nextnode		= geneTree->mxtips + 1;	
 	
 	//Copy the prefixSum Array to alter it for leafs that were already added
 	geneTree->taxaOccurencePrefixSum = longDup(referenceTree->taxaOccurencePrefixSum, referenceTree->mxtips);
@@ -174,17 +155,14 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, ana
 	determineLeafs(geneTree, &taxaGeneTree, inTreeMapping, referenceTree->numberOfTrees, generator);
 	
 	//loop recursively through the reference Tree and add Taxa that were set before
-	leftChild = addElement(referenceTree->start->back, geneTree, readBranches, &lcount, adef, storeBranchLabels, treeTaxa, inTreeMapping);
+	leftChild = addElement(referenceTree->start->back, geneTree, readBranches, &lcount, adef, storeBranchLabels, inTreeMapping);
 	
 	//check if reference->start would be in the tree 
-	if(inTreeMapping[referenceTree->start->number])
+	if(inTreeMapping[referenceTree->start->number - 1])
 	{
-		treeTaxa[lcount] = referenceTree->start->number;        	
-		start = lcount;
+		start = referenceTree->start->number;        	
 	}		
-	i = geneTree->ntips;
-	while(treeTaxa[i] != leftChild) i++;
-	p = geneTree->nodep[i+1];
+	p = geneTree->nodep[leftChild];
 
 	if(leftChild > 0 && start > 0 )
 	{
@@ -195,7 +173,7 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, ana
 	//if start is not included the next inner node must be pulled up to avoid a rooted tree
 	else if(leftChild > 0 && start == 0)
 	{
-		if(!isTip(p->next->back->number, geneTree->ntips))
+		if(!isTip(p->next->back->number, geneTree->mxtips))
 		{
 			tmp = p->next->back;
 			hookupDefault(p->next,tmp->next->next->back, geneTree->numBranches);
@@ -217,7 +195,7 @@ void generateGeneTree(tree *referenceTree, tree *geneTree, int taxaGeneTree, ana
 	return;
 }
 
-void switchLeafs(tree *tr, int numLeaf1, int numLeaf2)
+void switchLeafs(tree *tr, int numLeaf1, int numLeaf2, int* geneTreeTaxa)
 {
 
 	int 
@@ -229,8 +207,8 @@ void switchLeafs(tree *tr, int numLeaf1, int numLeaf2)
 		leaf2 = (nodeptr) NULL,
 		tmp = (nodeptr) NULL;
 
-	leaf1 = tr->nodep[numLeaf1];
-	leaf2 = tr->nodep[numLeaf2];
+	leaf1 = tr->nodep[geneTreeTaxa[numLeaf1-1]];
+	leaf2 = tr->nodep[geneTreeTaxa[numLeaf2-1]];
 
 	tmp = leaf2->back;
 	hookupDefault(leaf1->back, leaf2, tr->numBranches);

@@ -280,7 +280,6 @@ void setupGeneTree(tree *geneTree, int taxaGeneTree){
 
 	geneTree->likelihood	= unlikely;
 	geneTree->start			= (node *) NULL;
-	geneTree->mxtips		= taxaGeneTree;
 	geneTree->ntips			= 0;
 	geneTree->nextnode		= 0;
 }
@@ -320,7 +319,7 @@ void getTaxaDistribution(tree *tr, FILE  *input)
 }
 
 
-float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, int *taxonToReduction, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel)
+float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, int *taxonToReduction, int *taxonToEulerIndex, int *taxonToLabel, int *labelToTaxon, int *eulerIndexToLabel, int* geneTreeTaxa)
 {
 	int *taxonHasDeg = (int *)rax_calloc((2*tr->mxtips - 2),sizeof(int));
 	if(geneTree->ntips < 3)
@@ -364,8 +363,6 @@ float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, int *tax
 	  
 	/* geneTreeTaxa[geneTree->ntips]; 
 	Stores all taxa numbers from geneTree into an array called geneTreeTaxa: (Index) -> (Taxonnumber)  */
-	int* 
-		geneTreeTaxa = (int *)rax_malloc((geneTree->ntips) * sizeof(int));
 	  
 	int 
 		newcount = 0,
@@ -478,7 +475,6 @@ float calculateRFDistance(tree *tr, tree *geneTree, int numberOfSplits, int *tax
 	freeHashTable(s_hash);
 	rax_free(s_hash);
 	rax_free(taxonHasDeg);
-	rax_free(geneTreeTaxa);
 	rax_free(seq);
 	rax_free(seq2);
 	rax_free(geneTreeTaxonToEulerIndex);
@@ -504,6 +500,7 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 	tr->geneRFDistances = (float *)rax_calloc(tr->numberOfTrees + 1, sizeof(float)); 
 	tr->taxaOccurencePrefixSum = (unsigned long *)rax_calloc(tr->mxtips + 1, sizeof(unsigned long)); 
 
+	
 	getTaxaDistribution(tr, input);
 	allocateMultifurcations(tr, smallTree);
 	
@@ -513,7 +510,9 @@ void getGeneTreeStatistics(tree *tr, char *geneTreeFileName, analdef *adef, int 
 		int numberOfSplits = readMultifurcatingTree(input, smallTree, adef, FALSE); //LR set to false
 		if(numberOfSplits > 0)
 		{
-			rf_dist = calculateRFDistance(tr, smallTree, numberOfSplits, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
+			 int* smallTreeTaxa = (int *)rax_malloc((smallTree->ntips) * sizeof(int));
+			rf_dist = calculateRFDistance(tr, smallTree, numberOfSplits, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel, smallTreeTaxa);
+			rax_free(smallTreeTaxa);
 		}	
 		tr->geneLeafDistributions[i] = smallTree->ntips;
 		tr->geneRFDistances[i] = rf_dist;
@@ -550,135 +549,6 @@ void enlargeTree(tree *tr, int oldTaxaCount, std::default_random_engine *generat
 		//TODO adjust distribution
 	}
 
-}
-static char *geneTree2StringREC(char *treestr, tree *tr, nodeptr p, boolean printBranchLengths, boolean printNames, boolean printLikelihood, boolean rellTree, boolean finalPrint, int perGene, boolean branchLabelSupport, boolean printSHSupport, boolean printIC, boolean printSHSupports, int* treeTaxa)
-{
-  char  *nameptr;            
-      
-  if(isTip(p->number, tr->ntips)) 
-    {	       	  
-      if(printNames)
-	{
-	  nameptr = tr->nameList[treeTaxa[(p->number)-1]];     
-	  sprintf(treestr, "%s", nameptr);
-	}
-      else
-	sprintf(treestr, "%d", p->number);    
-	
-      while (*treestr) treestr++;
-    }
-  else 
-    {                 	 
-      *treestr++ = '(';
-      treestr = geneTree2StringREC(treestr, tr, p->next->back, printBranchLengths, printNames, printLikelihood, rellTree, finalPrint, perGene, branchLabelSupport, printSHSupport, printIC, printSHSupports, treeTaxa);
-      *treestr++ = ',';
-      treestr = geneTree2StringREC(treestr, tr, p->next->next->back, printBranchLengths, printNames, printLikelihood, rellTree, finalPrint, perGene, branchLabelSupport, printSHSupport, printIC, printSHSupports, treeTaxa);
-      if(p == tr->start->back) 
-	{
-	  *treestr++ = ',';
-	  treestr = geneTree2StringREC(treestr, tr, p->back, printBranchLengths, printNames, printLikelihood, rellTree, finalPrint, perGene, branchLabelSupport, printSHSupport, printIC, printSHSupports, treeTaxa);
-	}
-      *treestr++ = ')';                    
-    }
-
-  if(p == tr->start->back) 
-    {	      	 
-      if(printBranchLengths && !rellTree)
-	sprintf(treestr, ":0.0;\n");
-      else
-	sprintf(treestr, ";\n");	 	  	
-    }
-  else 
-    {                   
-      if(rellTree || branchLabelSupport || printSHSupport || printIC || printSHSupports)
-	{	 	 
-	  if(( !isTip(p->number, tr->rdta->numsp)) && 
-	     ( !isTip(p->back->number, tr->rdta->numsp)))
-	    {			      
-	      assert(p->bInf != (branchInfo *)NULL);	      	    
-	      
-	      assert(rellTree + branchLabelSupport + printSHSupport + printSHSupports == 1);
-
-	      if(rellTree)
-		{
-		  if(printIC)
-		    sprintf(treestr, "%1.3f:%8.20f", p->bInf->ic, p->z[0]);
-		  else
-		    sprintf(treestr, "%d:%8.20f", p->bInf->support, p->z[0]);
-		}
-	      
-	      if(branchLabelSupport)
-		{
-		  if(printIC)
-		    sprintf(treestr, ":%8.20f[%1.3f,%1.3f]", p->z[0], p->bInf->ic, p->bInf->icAll);
-		  else		    
-		    sprintf(treestr, ":%8.20f[%d]", p->z[0], p->bInf->support);
-		}
-	      
-	      if(printSHSupport)
-		sprintf(treestr, ":%8.20f[%d]", getBranchLength(tr, perGene, p), p->bInf->support);
-
-	      if(printSHSupports)
-		{
-		  int 
-		    model;
-		  
-		  sprintf(treestr, ":%8.20f[", getBranchLength(tr, perGene, p));
-		  while(*treestr) 
-		    treestr++;
-		  
-		  for(model = 0; model < tr->NumberOfModels - 1; model++)		    
-		    {
-		      sprintf(treestr, "%d,", p->bInf->supports[model]);
-		       while(*treestr) 
-			 treestr++;
-		    }
-
-		  sprintf(treestr, "%d]", p->bInf->supports[model]);
-		}
-	      
-	    }
-	  else		
-	    {
-	      if(rellTree || branchLabelSupport)
-		sprintf(treestr, ":%8.20f", p->z[0]);	
-	      if(printSHSupport || printSHSupports)
-		sprintf(treestr, ":%8.20f", getBranchLength(tr, perGene, p));
-	    }
-	}
-      else
-	{
-	  if(printBranchLengths)	    
-	    sprintf(treestr, ":%8.20f", getBranchLength(tr, perGene, p));	      	   
-	  else	    
-	    sprintf(treestr, "%s", "\0");	    
-	}      
-    }
-  
-  while (*treestr) treestr++;
-  return  treestr;
-}
-
-void geneTree2String(char *treestr, tree *tr, nodeptr p, boolean printBranchLengths, boolean printNames, boolean printLikelihood, boolean rellTree, boolean finalPrint, analdef *adef, int perGene, boolean branchLabelSupport, boolean printSHSupport, boolean printIC, boolean printSHSupports, int* treeTaxa)
-{ 
-  //make sure the tree string is clean in the beginning 
-  memset(treestr, 0, sizeof(char) * tr->treeStringLength);
-  //printf("Tree string: %s\n", tr->tree_string);
-
-  if(rellTree)
-    assert(!branchLabelSupport && !printSHSupport);
-
-  if(branchLabelSupport)
-    assert(!rellTree && !printSHSupport);
-
-  if(printSHSupport)
-    assert(!branchLabelSupport && !rellTree);
-
-    geneTree2StringREC(treestr, tr, p, printBranchLengths, printNames, printLikelihood, rellTree, 
-		   finalPrint, perGene, branchLabelSupport, printSHSupport, printIC, printSHSupports, treeTaxa);  
-    
-  
-  return;
 }
 
 void freeTree(tree *tr)

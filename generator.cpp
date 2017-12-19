@@ -77,7 +77,8 @@ int main(int argc, char* argv[]) {
 		*labelToTaxon = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int)),
 		*taxonToEulerIndex  = (int *)rax_malloc((tr->mxtips) * sizeof(int)),
 		*taxonToReduction = (int *)rax_malloc((2*tr->mxtips - 2) * sizeof(int));
-	
+
+
 	//Get the necessary information of the reference tree	
 	prepareReferenceTree(tr, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);
 	//Calulcate taxa distribution and RF distances for all gene trees
@@ -90,10 +91,8 @@ int main(int argc, char* argv[]) {
 		tree *geneTree = (tree *)rax_malloc(sizeof(tree));
 		int taxaGeneTree = (int)((double)tr->geneLeafDistributions[i] * ratio);
 		//maps the node number of the gene tree(taxon and inner) to the node number of the reference tree
-		int* treeTaxa = (int *)rax_malloc((tr->ntips * 2) * sizeof(int));
-		boolean* inTreeMapping = (boolean*)rax_calloc((tr->ntips) , sizeof(boolean));		
-		std::uniform_int_distribution<int> distribution(0,geneTree->ntips-1);
-
+		boolean* inTreeMapping = (boolean*)rax_calloc((tr->ntips) , sizeof(boolean));
+                int *geneTreeTaxa = (int *)rax_malloc((tr->geneLeafDistributions[i]) * sizeof(int));	
 		//init HashTable with all TaxaNames because we don't know at the moment which taxa won't be in the gene tree
 		geneTree->nameHash 	= tr->nameHash;		
 		geneTree->rdta 		= tr->rdta;
@@ -102,14 +101,15 @@ int main(int argc, char* argv[]) {
 		loopIterations = 10;
 		
 		//Generate one geneTree
-		generateGeneTree(tr, geneTree, taxaGeneTree, adef, ratio, treeTaxa, inTreeMapping, &generator);
+		generateGeneTree(tr, geneTree, taxaGeneTree, adef, ratio, inTreeMapping, &generator);
 		
-		geneTree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE, treeTaxa);
+		Tree2String(geneTree->tree_string, geneTree, geneTree->start->back, FALSE, TRUE,     FALSE, FALSE, TRUE, adef, SUMMARIZE_LH, FALSE, FALSE, FALSE, FALSE);
 		printf("%s", geneTree->tree_string);
 
-		rf = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
+		rf = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel, geneTreeTaxa);//rf = 0.0;
 		printf("target rf distance: %f, current rf distance: %f \n", tr->geneRFDistances[i], rf);
 
+		std::uniform_int_distribution<int> distribution(1,geneTree->ntips);
 		//switch leafs until the RF distance is satisfying
 		while(!((rf >= tr->geneRFDistances[i]*0.9) && (rf <= tr->geneRFDistances[i]*1.1)) && loopIterations != 0)
 		{
@@ -118,8 +118,8 @@ int main(int argc, char* argv[]) {
 			//if the same number occured try again
 			while(numLeaf1 == numLeaf2) numLeaf2 = distribution(generator);
 			
-			switchLeafs(geneTree, numLeaf1, numLeaf2);
-			rf2 = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel);//rf = 0.0;
+			switchLeafs(geneTree, numLeaf1, numLeaf2, geneTreeTaxa);
+			rf2 = calculateRFDistance(tr, geneTree, geneTree->numberOfBranches, taxonToReduction, taxonToEulerIndex, taxonToLabel, labelToTaxon, eulerIndexToLabel, geneTreeTaxa);//rf = 0.0;
 
 			//if the switch is an iprovement accept the changes
 			if(((rf2 > rf) && (rf2 <= tr->geneRFDistances[i]) && (rf < tr->geneRFDistances[i])) || ((rf2 < rf) && (rf2 >= tr->geneRFDistances[i]) && (rf > tr->geneRFDistances[i])))
@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
 			{
 				//TODO: Accept step back with certain propability
 				//switch leafs back to the step before
-				switchLeafs(geneTree, numLeaf1, numLeaf2);
+				switchLeafs(geneTree, numLeaf1, numLeaf2, geneTreeTaxa);
 				loopIterations--;
 			}
 		}
@@ -142,8 +142,8 @@ int main(int argc, char* argv[]) {
 		//rewind(fp);	
 		
 		//freeMultifurcations(geneTree);
-		rax_free(treeTaxa);
 		rax_free(inTreeMapping);
+		rax_free(geneTreeTaxa);
 		freeTree(geneTree);
 		rax_free(geneTree);
 	}
